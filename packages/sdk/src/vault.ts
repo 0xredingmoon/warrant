@@ -1,6 +1,6 @@
 import { erc20Abi, parseEventLogs, type Address, type Hex, type PublicClient } from "viem";
 import { agentRegistryAbi, warrantFactoryAbi, warrantVaultAbi } from "./abis";
-import { toCheckResult, type CheckResult } from "./reasons";
+import { reasonMessage, reasonName, toCheckResult, type CheckResult, type ReasonName } from "./reasons";
 import { decodeRejection, writeLegacy, type Clients, type TxResult } from "./tx";
 import type {
   InvoiceState,
@@ -10,6 +10,7 @@ import type {
   PaymentIntent,
   Pending,
   PendingStatus,
+  WindowState,
 } from "./types";
 
 const PENDING_STATUS: PendingStatus[] = ["None", "Open", "Approved", "Rejected", "Expired"];
@@ -71,12 +72,14 @@ export interface VaultState {
   balance: bigint;
   mandateCount: bigint;
   pendingCount: bigint;
+  /** block the vault was created in: where its audit log starts */
+  createdAtBlock: bigint;
 }
 
 export async function getVaultState(publicClient: PublicClient, vault: Address): Promise<VaultState> {
   const read = (functionName: string) =>
     publicClient.readContract({ address: vault, abi: warrantVaultAbi, functionName } as any) as Promise<any>;
-  const [owner, guardian, frozen, token, registry, balance, mandateCount, pendingCount] = await Promise.all([
+  const [owner, guardian, frozen, token, registry, balance, mandateCount, pendingCount, createdAtBlock] = await Promise.all([
     read("owner"),
     read("guardian"),
     read("frozen"),
@@ -85,8 +88,9 @@ export async function getVaultState(publicClient: PublicClient, vault: Address):
     read("balance"),
     read("mandateCount"),
     read("pendingCount"),
+    read("createdAtBlock"),
   ]);
-  return { address: vault, owner, guardian, frozen, token, registry, balance, mandateCount, pendingCount };
+  return { address: vault, owner, guardian, frozen, token, registry, balance, mandateCount, pendingCount, createdAtBlock };
 }
 
 export async function getMandate(publicClient: PublicClient, vault: Address, id: bigint): Promise<Mandate> {
@@ -111,10 +115,17 @@ export async function getMandate(publicClient: PublicClient, vault: Address, id:
       approvalWindow: Number(m.params.approvalWindow),
     },
     spentTotal: m.spentTotal,
-    periodSpent: m.periodSpent,
-    periodIndex: m.periodIndex,
     revoked: m.revoked,
   };
+}
+
+/** Rolling-window usage of a mandate's period cap, and when the oldest counted spend frees up. */
+export async function getWindow(publicClient: PublicClient, vault: Address, id: bigint): Promise<WindowState> {
+  const [spent, next] = await Promise.all([
+    publicClient.readContract({ address: vault, abi: warrantVaultAbi, functionName: "periodSpent", args: [id] }) as Promise<bigint>,
+    publicClient.readContract({ address: vault, abi: warrantVaultAbi, functionName: "nextRelease", args: [id] }) as Promise<readonly [bigint, bigint]>,
+  ]);
+  return { spent, nextReleaseAmount: next[0], nextReleaseAt: Number(next[1]) };
 }
 
 export async function listMandates(publicClient: PublicClient, vault: Address): Promise<Mandate[]> {
@@ -322,6 +333,42 @@ export async function pay(args: { clients: Clients; vault: Address; intent: Paym
     throw decodeRejection(e) ?? e;
   }
   const queued = parseEventLogs({ abi: warrantVaultAbi, logs: res.receipt.logs, eventName: "PaymentQueued" })[0];
+  return queued ? { ...res, status: "queued", pendingId: queued.args.pendingId } : { ...res, status: "executed" };
+}
+
+export interface SubmitOutcome extends TxResult {
+  /** "executed": money moved. "queued": waiting for owner approval. "refused": the rules said no and the refusal is on-chain. */
+  status: "executed" | "queued" | "refused";
+  pendingId?: bigint;
+  /** set when `status` is "refused" */
+  refusal?: { code: number; reason: ReasonName; message: string };
+}
+
+/**
+ * Like `pay`, but a refused payment is recorded on-chain (`PaymentRefused`, no funds move) instead of reverting.
+ * The intent must still carry the agent's valid signature and be unexpired and unused, otherwise this throws
+ * `WarrantRejected` exactly like `pay`. This is what the relayer submits.
+ */
+export async function payOrRefuse(args: { clients: Clients; vault: Address; intent: PaymentIntent; signature: Hex }): Promise<SubmitOutcome> {
+  let res: TxResult;
+  try {
+    res = await writeLegacy(args.clients, {
+      address: args.vault,
+      abi: warrantVaultAbi,
+      functionName: "payOrRefuse",
+      args: [args.intent, args.signature],
+      gas: 600_000n,
+    });
+  } catch (e) {
+    throw decodeRejection(e) ?? e;
+  }
+  const logs = parseEventLogs({ abi: warrantVaultAbi, logs: res.receipt.logs });
+  const refused = logs.find((l) => l.eventName === "PaymentRefused") as any;
+  if (refused) {
+    const code = Number(refused.args.reason);
+    return { ...res, status: "refused", refusal: { code, reason: reasonName(code), message: reasonMessage(code) } };
+  }
+  const queued = logs.find((l) => l.eventName === "PaymentQueued") as any;
   return queued ? { ...res, status: "queued", pendingId: queued.args.pendingId } : { ...res, status: "executed" };
 }
 

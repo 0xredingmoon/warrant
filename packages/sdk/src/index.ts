@@ -10,3 +10,4 @@ export * from "./registry";
 export * from "./templates";
 export * from "./relayer-client";
 export * from "./agent";
+export * from "./x402";

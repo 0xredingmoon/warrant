@@ -6,7 +6,9 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": { "warrant-relayer": "./dist/server.js" },
+  "bin": {
+    "warrant-relayer": "./dist/server.js"
+  },
   "scripts": {
     "build": "tsup src/index.ts src/server.ts --format esm --dts --clean",
     "start": "tsx src/server.ts",
@@ -17,7 +19,8 @@
     "@warrant/sdk": "workspace:*",
     "express": "^4.21.0",
     "viem": "^2.21.0",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "@warrant/store": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

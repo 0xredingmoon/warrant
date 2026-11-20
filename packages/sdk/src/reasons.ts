@@ -23,6 +23,22 @@ export const Reason = {
 
 export type ReasonName = keyof typeof Reason;
 
+/**
+ * Reasons that a vault records on-chain as `PaymentRefused` (via `payOrRefuse`): the intent was authentic and the
+ * mandate's rules said no. The other refusals (unknown mandate, expired or replayed intent, bad signature) are not
+ * recorded: they prove nothing about what the agent tried.
+ */
+export function isRecordableRefusal(code: number): boolean {
+  return (
+    code !== Reason.Ok &&
+    code !== Reason.ApprovalRequired &&
+    code !== Reason.MandateNotFound &&
+    code !== Reason.IntentExpired &&
+    code !== Reason.NonceUsed &&
+    code !== Reason.BadSignature
+  );
+}
+
 const NAMES = Object.fromEntries(Object.entries(Reason).map(([k, v]) => [v, k])) as Record<number, ReasonName>;
 
 const MESSAGES: Record<ReasonName, string> = {
@@ -37,7 +53,7 @@ const MESSAGES: Record<ReasonName, string> = {
   ZeroAmount: "The amount is zero.",
   ExceedsPerTxCap: "The amount is above the per-payment limit of this mandate.",
   ExceedsMerchantPerTxCap: "The amount is above the per-payment limit set for this merchant.",
-  ExceedsPeriodCap: "This payment would exceed the mandate's spending limit for the current period.",
+  ExceedsPeriodCap: "This payment would exceed the mandate's spending limit for the trailing period.",
   ExceedsMerchantTotalCap: "This payment would exceed the total limit set for this merchant.",
   ExceedsTotalCap: "This payment would exceed the mandate's lifetime spending limit.",
   InvoiceAlreadyUsed: "This invoice was already paid (or is waiting for approval). Paying it twice is blocked.",

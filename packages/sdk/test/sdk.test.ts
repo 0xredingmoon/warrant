@@ -120,3 +120,143 @@ describe("getLogsChunked", () => {
     expect(decodeAuditLogs([{ address: "0x0000000000000000000000000000000000000001", topics: ["0x1234"], data: "0x", blockNumber: 1n, logIndex: 0, transactionHash: "0x00" } as any])).toEqual([]);
   });
 });
+
+/* ------------------------------------------------------------------ new in this round */
+
+import { encodeAbiParameters, encodeEventTopics } from "viem";
+import {
+  X402_HEADERS,
+  decodeHeader,
+  encodeHeader,
+  getAuditLog,
+  getLogsFromIndexer,
+  isRecordableRefusal,
+  paymentRequired,
+  readPaymentHeader,
+  snake,
+  warrantVaultAbi,
+  x402Network,
+  chainIdFromNetwork,
+} from "../src";
+
+describe("refusals", () => {
+  it("records only refusals of authentic intents", () => {
+    const recordable = Object.entries(Reason).filter(([, c]) => isRecordableRefusal(c)).map(([n]) => n);
+    expect(recordable).toEqual([
+      "MandateRevoked", "VaultFrozen", "NotYetValid", "MandateExpired", "MerchantNotAllowed", "ZeroAmount", "ExceedsPerTxCap",
+      "ExceedsMerchantPerTxCap", "ExceedsPeriodCap", "ExceedsMerchantTotalCap", "ExceedsTotalCap", "InvoiceAlreadyUsed", "InsufficientBalance",
+    ]);
+  });
+});
+
+const VAULT = "0x927d8b1030E90d94039b3281A3E4b415E11c6aba" as const;
+const MERCHANT = "0xf2b01C5b12DaAe6adAa0a876065D303302F4b4Ae" as const;
+const b32 = (n: number) => ("0x" + n.toString(16).padStart(64, "0")) as `0x${string}`;
+
+function refusedRaw(block: number, logIndex: number) {
+  const topics = encodeEventTopics({ abi: warrantVaultAbi, eventName: "PaymentRefused", args: { mandateId: 1n, agent: MERCHANT, merchant: MERCHANT } });
+  const data = encodeAbiParameters([{ type: "uint256" }, { type: "uint8" }, { type: "bytes32" }, { type: "bytes32" }], [2_500_000n, 7, b32(1), b32(2)]);
+  return {
+    address: VAULT.toLowerCase(),
+    blockNumber: "0x" + block.toString(16),
+    logIndex: "0x" + logIndex.toString(16),
+    transactionHash: b32(block * 100 + logIndex),
+    data,
+    topics: [...topics, null],
+  };
+}
+
+describe("audit log sources", () => {
+  it("decodes PaymentRefused with the reason in plain language", async () => {
+    const calls: string[] = [];
+    const fetchMock = vi.fn(async (u: any) => {
+      calls.push(String(u));
+      return new Response(JSON.stringify({ message: "OK", result: [refusedRaw(10, 0)] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const entries = await getLogsFromIndexer({ indexerUrl: "https://x.test/", address: VAULT, fromBlock: 5n, toBlock: 99n });
+    vi.unstubAllGlobals();
+    expect(calls[0]).toBe(`https://x.test/api?module=logs&action=getLogs&fromBlock=5&toBlock=99&address=${VAULT}`);
+    const [e] = decodeAuditLogs(entries);
+    expect(e!.kind).toBe("PaymentRefused");
+    expect(e!.summary).toMatch(/^Refused 2\.50 tUSD8 to 0xf2b0…b4Ae under mandate #1: That recipient is not on this mandate's merchant allowlist/);
+  });
+
+  it("pages when the explorer answers a full page and drops duplicates", async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => refusedRaw(10 + Math.floor(i / 10), i % 10));
+    const second = [...full.slice(-10), refusedRaw(200, 0)];
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", async (u: any) => {
+      urls.push(String(u));
+      return new Response(JSON.stringify({ message: "OK", result: urls.length === 1 ? full : second }));
+    });
+    const logs = await getLogsFromIndexer({ indexerUrl: "https://x.test", address: VAULT, fromBlock: 1n, toBlock: 300n });
+    vi.unstubAllGlobals();
+    expect(urls.length).toBe(2);
+    expect(urls[1]).toContain("fromBlock=109"); // resumes from the last block seen
+    expect(logs.length).toBe(1001);
+  });
+
+  it("uses the explorer for history plus the RPC for the newest blocks, and falls back to the RPC if the explorer fails", async () => {
+    const rpcCalls: Array<[bigint, bigint]> = [];
+    const publicClient = {
+      getBlockNumber: async () => 5000n,
+      getLogs: async ({ fromBlock, toBlock }: any) => {
+        rpcCalls.push([fromBlock, toBlock]);
+        return [];
+      },
+    } as unknown as PublicClient;
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ message: "OK", result: [refusedRaw(10, 0)] })));
+    let source = "";
+    const viaIndexer = await getAuditLog({ publicClient, vault: VAULT, fromBlock: 1n, indexerUrl: "https://x.test", tailBlocks: 500n, onSource: (s) => (source = s) });
+    expect(source).toBe("indexer");
+    expect(viaIndexer.map((e) => e.kind)).toEqual(["PaymentRefused"]);
+    expect(rpcCalls).toEqual([[4501n, 4999n + 1n]]); // only the last 500 blocks hit the RPC (one ≤1000-block chunk)
+
+    rpcCalls.length = 0;
+    vi.stubGlobal("fetch", async () => new Response("bad gateway", { status: 502 }));
+    await getAuditLog({ publicClient, vault: VAULT, fromBlock: 1n, indexerUrl: "https://x.test", onSource: (s) => (source = s) });
+    vi.unstubAllGlobals();
+    expect(source).toBe("rpc");
+    expect(rpcCalls.length).toBe(5); // 5,000 blocks in 1,000-block chunks
+  });
+});
+
+describe("x402 helpers", () => {
+  it("round-trips base64 JSON headers, including non-ASCII text", () => {
+    const v = { a: 1, text: "café ✓", nested: { n: ["x"] } };
+    expect(decodeHeader(encodeHeader(v))).toEqual(v);
+  });
+
+  it("names networks both ways", () => {
+    expect(x402Network(44005, 1)).toBe("aevum-testnet");
+    expect(x402Network(44005, 2)).toBe("eip155:44005");
+    expect(x402Network(8453, 1)).toBe("eip155:8453");
+    expect(chainIdFromNetwork("aevum-testnet")).toBe(44005);
+    expect(chainIdFromNetwork("eip155:44005")).toBe(44005);
+    expect(chainIdFromNetwork("solana")).toBeUndefined();
+  });
+
+  it("builds a 402 that carries both wire versions", () => {
+    const { body, headers } = paymentRequired({ invoiceRef: b32(1), amount: 150_000n, payTo: MERCHANT, token: "0x456569838f1d43009A91ebA4263147Afd7233483", chainId: 44005, resource: "https://api.test/x", description: "d", ttlSeconds: 900 });
+    expect(body.x402Version).toBe(1);
+    expect(body.accepts[0]).toMatchObject({ scheme: "warrant", network: "aevum-testnet", maxAmountRequired: "150000", resource: "https://api.test/x" });
+    const v2 = decodeHeader<any>(headers[X402_HEADERS.v2.required]);
+    expect(v2.accepts[0]).toMatchObject({ scheme: "warrant", network: "eip155:44005", amount: "150000" });
+    expect(v2.resource.url).toBe("https://api.test/x");
+  });
+
+  it("reads either payment header and rejects garbage", () => {
+    const payload = { x402Version: 1, payload: { vault: VAULT } };
+    expect(readPaymentHeader((n) => (n === "X-PAYMENT" ? encodeHeader(payload) : undefined))).toEqual(payload);
+    expect(readPaymentHeader((n) => (n === "PAYMENT-SIGNATURE" ? encodeHeader({ ...payload, x402Version: 2 }) : undefined))).toMatchObject({ x402Version: 2 });
+    expect(readPaymentHeader(() => undefined)).toBeUndefined();
+    expect(() => readPaymentHeader(() => "%%%")).toThrow();
+    expect(() => readPaymentHeader(() => encodeHeader({ nope: true }))).toThrow(/malformed/);
+  });
+
+  it("snake-cases reason names", () => {
+    expect(snake("ExceedsPeriodCap")).toBe("exceeds_period_cap");
+    expect(snake("MerchantNotAllowed")).toBe("merchant_not_allowed");
+  });
+});

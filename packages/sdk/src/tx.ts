@@ -70,6 +70,7 @@ const CUSTOM_ERRORS: Record<string, string> = {
   PendingWindowClosed: "The approval window for that payment has closed.",
   PendingStillOpen: "That payment can't be expired yet.",
   SignatureExpired: "That signature has expired.",
+  RefusalLogFull: "This mandate already has the maximum number of recorded refusals.",
 };
 
 /**

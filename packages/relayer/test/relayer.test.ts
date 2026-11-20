@@ -11,10 +11,13 @@ const base: RelayerConfig = {
   ratePerMinuteIp: 3,
   ratePerMinuteVault: 30,
   dailyTxCap: 5,
+  dbPath: ":memory:",
+  refusalsPerHourVault: 20,
+  dailyRefusalCap: 200,
 };
 
 async function serve(cfg: RelayerConfig) {
-  const { app } = createRelayerApp(cfg);
+  const { app } = createRelayerApp({ ...cfg, dbPath: ":memory:" });
   const server = await new Promise<import("node:http").Server>((r) => { const s = app.listen(0, "127.0.0.1", () => r(s)); });
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, close: () => server.close() };
 }

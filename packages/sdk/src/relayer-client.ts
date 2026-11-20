@@ -3,8 +3,11 @@ import { toCheckResult, type CheckResult } from "./reasons";
 import type { PaymentIntent } from "./types";
 
 export interface RelayPayResponse {
-  /** "executed": paid. "queued": waiting for the owner. "rejected": the vault refused (see reason). */
-  status: "executed" | "queued" | "rejected";
+  /**
+   * "executed": paid. "queued": waiting for the owner. "refused": the mandate said no and the refusal was recorded
+   * on-chain (`txHash`). "rejected": refused and not recorded (bad signature, expired, rate limit...).
+   */
+  status: "executed" | "queued" | "refused" | "rejected";
   check: CheckResult;
   txHash?: Hex;
   explorerUrl?: string;

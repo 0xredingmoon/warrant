@@ -16,6 +16,14 @@ export interface RelayerConfig {
   ratePerMinuteVault: number;
   /** hard cap on transactions the relayer will send per UTC day (default 500) */
   dailyTxCap: number;
+  /** SQLite file for rate limits, daily budgets and x402 settlements. ":memory:" forgets everything on restart. */
+  dbPath: string;
+  /** on-chain refusals (`PaymentRefused`) the relayer pays for, per vault per hour (default 20) */
+  refusalsPerHourVault: number;
+  /** hard cap on recorded refusals per UTC day across all vaults (default 200) */
+  dailyRefusalCap: number;
+  /** Blockscout-compatible explorer used to find past logs quickly (optional; the RPC is the fallback) */
+  indexerUrl?: string;
   /** header carrying the real client IP when behind a proxy (e.g. x-forwarded-for). Default: socket address. */
   trustedIpHeader?: string;
 }
@@ -36,6 +44,10 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Relayer
     ratePerMinuteIp: Number(env.RATE_PER_MINUTE_IP ?? 60),
     ratePerMinuteVault: Number(env.RATE_PER_MINUTE_VAULT ?? 30),
     dailyTxCap: Number(env.DAILY_TX_CAP ?? 500),
+    dbPath: env.DATABASE_PATH ?? "./data/relayer.db",
+    refusalsPerHourVault: Number(env.REFUSALS_PER_HOUR_VAULT ?? 20),
+    dailyRefusalCap: Number(env.DAILY_REFUSAL_CAP ?? 200),
+    indexerUrl: env.INDEXER_URL || env.EXPLORER_URL || "https://explorer-test.qday.info",
     trustedIpHeader: env.TRUSTED_IP_HEADER || undefined,
   };
 }

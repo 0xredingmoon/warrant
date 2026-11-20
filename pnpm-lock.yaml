@@ -75,6 +75,9 @@ importers:
       '@warrant/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@warrant/store':
+        specifier: workspace:*
+        version: link:../store
       express:
         specifier: ^4.21.0
         version: 4.22.3
@@ -103,6 +106,9 @@ importers:
       '@warrant/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@warrant/store':
+        specifier: workspace:*
+        version: link:../store
       express:
         specifier: ^4.21.0
         version: 4.22.3
@@ -138,6 +144,21 @@ importers:
         specifier: ^2.21.0
         version: 2.58.2(bufferutil@4.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
     devDependencies:
+      tsup:
+        specifier: ^8.3.0
+        version: 8.5.1(postcss@8.5.33)(tsx@4.23.15)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.5)
+
+  packages/store:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
       tsup:
         specifier: ^8.3.0
         version: 8.5.1(postcss@8.5.33)(tsx@4.23.15)(typescript@5.9.3)

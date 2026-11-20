@@ -1,7 +1,7 @@
 import { parseEventLogs, type Address, type Hash, type Log, type PublicClient } from "viem";
 import { warrantVaultAbi } from "./abis";
 import { formatUsd } from "./chain";
-import { reasonName } from "./reasons";
+import { reasonMessage, reasonName } from "./reasons";
 
 /** Aevum's RPC rejects eth_getLogs over more than 1,000 blocks. */
 export const MAX_LOG_RANGE = 1000n;
@@ -50,6 +50,7 @@ export type AuditKind =
   | "Withdrawn"
   | "PaymentExecuted"
   | "PaymentQueued"
+  | "PaymentRefused"
   | "PendingApproved"
   | "PendingRejected"
   | "PendingExpired"
@@ -91,6 +92,8 @@ function summarize(kind: AuditKind, a: any): string {
       return `Paid ${formatUsd(a.amount)} tUSD8 to ${short(a.merchant)} under mandate #${a.mandateId}${a.fee ? ` (fee ${formatUsd(a.fee)})` : ""}`;
     case "PaymentQueued":
       return `Queued ${formatUsd(a.amount)} tUSD8 to ${short(a.merchant)} for owner approval (#${a.pendingId})`;
+    case "PaymentRefused":
+      return `Refused ${formatUsd(a.amount)} tUSD8 to ${short(a.merchant)} under mandate #${a.mandateId}: ${reasonMessage(Number(a.reason))}`;
     case "PendingApproved":
       return `Queued payment #${a.pendingId} approved by ${short(a.by)}`;
     case "PendingRejected":
@@ -134,27 +137,94 @@ export function markCreation(entries: AuditEntry[]): AuditEntry[] {
   });
 }
 
+/** The block a vault was created in (`createdAtBlock`, set in its constructor): where its audit log starts. */
+export const getVaultCreatedBlock = (publicClient: PublicClient, vault: Address) =>
+  publicClient.readContract({ address: vault, abi: warrantVaultAbi, functionName: "createdAtBlock" }) as Promise<bigint>;
+
+const logKey = (l: Log) => `${l.blockNumber}:${l.logIndex}`;
+
 /**
- * Full audit trail of a vault from `fromBlock` (use the block the vault was created in) to `toBlock` (default: latest).
- * Reads in ≤1,000-block chunks.
+ * Logs from a Blockscout-compatible explorer (`/api?module=logs&action=getLogs`), which answers a whole history in
+ * one request instead of one RPC call per 1,000 blocks. Pages by block when a response is full (1,000 logs).
+ * Throws on any indexer problem: callers fall back to the RPC.
+ */
+export async function getLogsFromIndexer(args: {
+  indexerUrl: string;
+  address: Address;
+  fromBlock: bigint;
+  toBlock: bigint;
+  signal?: AbortSignal;
+}): Promise<Log[]> {
+  const base = args.indexerUrl.replace(/\/$/, "");
+  const seen = new Map<string, Log>();
+  let from = args.fromBlock;
+  for (let page = 0; page < 200; page++) {
+    const url = `${base}/api?module=logs&action=getLogs&fromBlock=${from}&toBlock=${args.toBlock}&address=${args.address}`;
+    const res = await fetch(url, { signal: args.signal });
+    if (!res.ok) throw new Error(`indexer ${res.status}`);
+    const json: any = await res.json();
+    if (!Array.isArray(json.result)) {
+      if (json.message === "No logs found") break;
+      throw new Error(`indexer: ${json.message ?? "bad response"}`);
+    }
+    let maxBlock = from;
+    for (const r of json.result) {
+      const log = {
+        address: r.address,
+        blockNumber: BigInt(r.blockNumber),
+        logIndex: Number(BigInt(r.logIndex)),
+        transactionHash: r.transactionHash,
+        data: r.data,
+        topics: (r.topics as (string | null)[]).filter((t): t is string => !!t),
+      } as unknown as Log;
+      if (log.blockNumber! > maxBlock) maxBlock = log.blockNumber!;
+      seen.set(logKey(log), log);
+    }
+    if (json.result.length < 1000) break;
+    if (maxBlock === from) throw new Error("indexer page did not advance");
+    from = maxBlock; // the last block may have been cut mid-way: re-read it, duplicates are keyed away
+  }
+  return [...seen.values()];
+}
+
+/**
+ * Full audit trail of a vault from `fromBlock` (use `getVaultCreatedBlock`) to `toBlock` (default: latest).
+ * With `indexerUrl` (a Blockscout explorer) the history comes from the explorer's index, and only the newest
+ * `tailBlocks` come from the RPC (the index may lag), so a long-lived vault loads in a request or two. If the
+ * indexer fails it falls back to reading the RPC in ≤1,000-block chunks. Result is oldest first.
  */
 export async function getAuditLog(args: {
   publicClient: PublicClient;
   vault: Address;
   fromBlock: bigint;
   toBlock?: bigint;
+  indexerUrl?: string;
+  tailBlocks?: bigint;
   onProgress?: (done: bigint, total: bigint) => void;
+  /** reports which source answered: "indexer" or "rpc" */
+  onSource?: (source: "indexer" | "rpc") => void;
 }): Promise<AuditEntry[]> {
   const toBlock = args.toBlock ?? (await args.publicClient.getBlockNumber());
   if (toBlock < args.fromBlock) return [];
-  const logs = await getLogsChunked({
-    publicClient: args.publicClient,
-    address: args.vault,
-    fromBlock: args.fromBlock,
-    toBlock,
-    onProgress: args.onProgress,
-  });
-  return decodeAuditLogs(logs);
+  const rpc = (fromBlock: bigint) =>
+    getLogsChunked({ publicClient: args.publicClient, address: args.vault, fromBlock, toBlock, onProgress: args.onProgress });
+
+  if (args.indexerUrl) {
+    try {
+      const tail = args.tailBlocks ?? 500n;
+      const tailFrom = toBlock - tail + 1n > args.fromBlock ? toBlock - tail + 1n : args.fromBlock;
+      const indexed = await getLogsFromIndexer({ indexerUrl: args.indexerUrl, address: args.vault, fromBlock: args.fromBlock, toBlock });
+      const fresh = await rpc(tailFrom);
+      const merged = new Map<string, Log>();
+      for (const l of [...indexed, ...fresh]) merged.set(logKey(l), l);
+      args.onSource?.("indexer");
+      return decodeAuditLogs([...merged.values()]);
+    } catch {
+      /* fall through to the RPC */
+    }
+  }
+  args.onSource?.("rpc");
+  return decodeAuditLogs(await rpc(args.fromBlock));
 }
 
 /**

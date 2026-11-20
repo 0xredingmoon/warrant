@@ -4,14 +4,20 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   decodeRejection,
   explainError,
+  isRecordableRefusal,
   toCheckResult,
   txUrl,
   warrantFactoryAbi,
   warrantVaultAbi,
   Reason,
+  type CheckResult,
+  type PaymentIntent,
 } from "@warrant/sdk";
+import { RateStore, openDb } from "@warrant/store";
 import { z } from "zod";
 import { isLocalRpc, PUBLIC_DEV_KEYS, type RelayerConfig } from "./config";
+import { SettlementStore } from "./settlements";
+import { mountFacilitator } from "./x402";
 
 const addr = z.string().refine(isAddress, "invalid address").transform((a) => getAddress(a));
 const hex = z.string().refine((s) => isHex(s), "invalid hex").transform((s) => s as Hex);
@@ -46,34 +52,35 @@ const depositSchema = z.object({
   signature: hex,
 });
 
-class SlidingWindow {
-  private hits = new Map<string, number[]>();
-  constructor(private readonly limit: number, private readonly windowMs: number) {}
-  take(key: string, now = Date.now()): boolean {
-    const arr = (this.hits.get(key) ?? []).filter((t) => now - t < this.windowMs);
-    if (arr.length >= this.limit) {
-      this.hits.set(key, arr);
-      return false;
-    }
-    arr.push(now);
-    this.hits.set(key, arr);
-    return true;
-  }
-}
-
 export interface RelayerApp {
   app: express.Express;
   relayerAddress: Address;
+  /** close the SQLite file (tests, graceful shutdown) */
+  close: () => void;
+}
+
+export interface SubmitResult {
+  /** executed: money moved. queued: waiting for the owner. refused: recorded on-chain, nothing moved. rejected: not submitted. */
+  status: "executed" | "queued" | "refused" | "rejected";
+  check: CheckResult;
+  txHash?: Hex;
+  explorerUrl?: string;
+  pendingId?: string;
+  blockNumber?: bigint;
+  /** why a refusal was not recorded on-chain (rate limit) */
+  note?: string;
 }
 
 /**
  * Guard rails (the relayer pays gas for anyone who can sign an intent, so it is deliberately boring):
  *  - only vaults deployed by the configured factory, only `pay` / `approveBySig` / `depositWithAuthorization`
  *  - free on-chain dry run first (`check`): refused payments cost no gas
- *  - per-IP and per-vault rate limits, a daily transaction cap, an optional bearer key
+ *  - per-IP and per-vault rate limits, a daily transaction cap, an optional bearer key, all kept in SQLite so they survive a restart
+ *  - refusals are recorded on-chain only for intents carrying the agent's valid signature (the vault enforces that
+ *    too), with their own per-vault hourly and daily budgets
  *  - one in-flight submission per (vault, merchant, invoice); transactions are sent one at a time (no nonce races)
  *  - refuses well-known public dev keys unless the RPC is local
- * Limits live in memory: put the relayer behind one process, or move them to a shared store before scaling out.
+ * State lives in one SQLite file (`cfg.dbPath`): run one relayer process per file.
  */
 export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
   if (PUBLIC_DEV_KEYS.has(cfg.privateKey.toLowerCase()) && !isLocalRpc(cfg.rpcUrl)) {
@@ -89,10 +96,12 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
   const publicClient = createPublicClient({ chain, transport: http(cfg.rpcUrl) });
   const walletClient = createWalletClient({ account, chain, transport: http(cfg.rpcUrl) });
 
-  const ipLimit = new SlidingWindow(cfg.ratePerMinuteIp, 60_000);
-  const vaultLimit = new SlidingWindow(cfg.ratePerMinuteVault, 60_000);
-  let txToday = 0;
-  let dayKey = new Date().toISOString().slice(0, 10);
+  const db = openDb(cfg.dbPath);
+  const rates = new RateStore(db);
+  const settlements = new SettlementStore(db);
+  rates.prune();
+  const pruneTimer = setInterval(() => rates.prune(), 3600_000);
+  pruneTimer.unref();
   const inflight = new Set<string>();
   const knownVaults = new Set<string>();
   let queue: Promise<unknown> = Promise.resolve();
@@ -124,13 +133,7 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
   }
 
   function takeDailyBudget() {
-    const today = new Date().toISOString().slice(0, 10);
-    if (today !== dayKey) {
-      dayKey = today;
-      txToday = 0;
-    }
-    if (txToday >= cfg.dailyTxCap) throw new HttpError(429, "The relayer reached its daily transaction cap. Try again tomorrow.");
-    txToday += 1;
+    if (!rates.takeDaily("tx", cfg.dailyTxCap)) throw new HttpError(429, "The relayer reached its daily transaction cap. Try again tomorrow.");
   }
 
   async function sendLegacy(vault: Address, functionName: string, args: readonly unknown[], gas: bigint) {
@@ -158,7 +161,7 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
   const guard = (req: Request, _res: Response, next: NextFunction) => {
     if (req.method === "POST") {
       if (cfg.apiKey && req.headers.authorization !== `Bearer ${cfg.apiKey}`) return next(new HttpError(401, "Missing or wrong API key."));
-      if (!ipLimit.take(clientIp(req))) return next(new HttpError(429, "Too many requests. Slow down."));
+      if (!rates.take("ip", clientIp(req), cfg.ratePerMinuteIp, 60_000)) return next(new HttpError(429, "Too many requests. Slow down."));
     }
     next();
   };
@@ -171,7 +174,7 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
 
   app.get("/health", wrap(async (_req, res) => {
     const balance = await publicClient.getBalance({ address: account.address });
-    res.json({ ok: true, chainId: cfg.chainId, relayer: account.address, factory: cfg.factory, balance: balance.toString(), txToday });
+    res.json({ ok: true, chainId: cfg.chainId, relayer: account.address, factory: cfg.factory, balance: balance.toString(), txToday: rates.today("tx"), refusalsToday: rates.today("refusal") });
   }));
 
   /** Free dry run: what would happen to this signed intent? */
@@ -182,54 +185,60 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
     res.json({ check: toCheckResult(code) });
   }));
 
-  app.post("/v1/pay", wrap(async (req, res) => {
-    const { vault, intent, signature } = paySchema.parse(req.body);
+  /**
+   * Submit an agent-signed intent with `payOrRefuse`: it pays, queues for the owner, or (when the mandate says no)
+   * records the refusal on-chain. Anything that is not authentic (bad signature, expired, replayed) is never sent.
+   */
+  async function submitIntent(vault: Address, intent: PaymentIntent, signature: Hex): Promise<SubmitResult> {
     await assertWarrantVault(vault);
-    if (!vaultLimit.take(vault)) throw new HttpError(429, "Too many payments for this vault. Slow down.");
+    if (!rates.take("vault", vault, cfg.ratePerMinuteVault, 60_000)) throw new HttpError(429, "Too many payments for this vault. Slow down.");
 
-    // 1. free dry run: refusals never cost gas
+    // 1. free dry run: authenticity first, then the rules
     const code = Number(await publicClient.readContract({ address: vault, abi: warrantVaultAbi, functionName: "check", args: [intent, signature] }));
     const check = toCheckResult(code);
+    let record = false;
     if (!check.accepted) {
-      res.status(200).json({ status: "rejected", check });
-      return;
+      if (!isRecordableRefusal(code)) return { status: "rejected", check };
+      if (!rates.take("refusal-vault", vault, cfg.refusalsPerHourVault, 3600_000) || !rates.takeDaily("refusal", cfg.dailyRefusalCap)) {
+        return { status: "rejected", check, note: "Refusal not recorded on-chain: the relayer's refusal budget for this vault is used up." };
+      }
+      record = true;
     }
 
     // 2. one in-flight submission per invoice
     const key = `${vault}:${intent.merchant}:${intent.invoiceRef}`.toLowerCase();
-    if (inflight.has(key)) {
-      res.status(200).json({ status: "rejected", check: toCheckResult(Reason.InvoiceAlreadyUsed) });
-      return;
-    }
+    if (inflight.has(key)) return { status: "rejected", check: toCheckResult(Reason.InvoiceAlreadyUsed) };
     inflight.add(key);
     try {
-      takeDailyBudget();
-      const { hash, receipt } = await sendLegacy(vault, "pay", [intent, signature], 700_000n);
-      const queued = parseEventLogs({ abi: warrantVaultAbi, logs: receipt.logs, eventName: "PaymentQueued" })[0];
-      res.json({
-        status: queued ? "queued" : "executed",
-        check,
-        txHash: hash,
-        explorerUrl: txUrl(hash, cfg.explorerUrl),
-        pendingId: queued ? queued.args.pendingId.toString() : undefined,
-      });
+      if (!record) takeDailyBudget();
+      const { hash, receipt } = await sendLegacy(vault, "payOrRefuse", [intent, signature], 700_000n);
+      const logs = parseEventLogs({ abi: warrantVaultAbi, logs: receipt.logs });
+      const base = { txHash: hash, explorerUrl: txUrl(hash, cfg.explorerUrl), blockNumber: receipt.blockNumber };
+      const refused = logs.find((l) => l.eventName === "PaymentRefused") as any;
+      if (refused) return { status: "refused", check: toCheckResult(Number(refused.args.reason)), ...base };
+      const queued = logs.find((l) => l.eventName === "PaymentQueued") as any;
+      if (queued) return { status: "queued", check, pendingId: queued.args.pendingId.toString(), ...base };
+      return { status: "executed", check, ...base };
     } catch (e) {
       // state may have moved between the dry run and inclusion: report the on-chain reason if there is one
       const rejected = decodeRejection(e);
-      if (rejected) {
-        res.status(200).json({ status: "rejected", check: toCheckResult(rejected.code) });
-        return;
-      }
+      if (rejected) return { status: "rejected", check: toCheckResult(rejected.code) };
       throw e;
     } finally {
       inflight.delete(key);
     }
+  }
+
+  app.post("/v1/pay", wrap(async (req, res) => {
+    const { vault, intent, signature } = paySchema.parse(req.body);
+    const r = await submitIntent(vault, intent, signature);
+    res.status(200).json({ ...r, blockNumber: undefined, pendingId: r.pendingId });
   }));
 
   app.post("/v1/approve", wrap(async (req, res) => {
     const { vault, pendingId, deadline, signature } = approveSchema.parse(req.body);
     await assertWarrantVault(vault);
-    if (!vaultLimit.take(vault)) throw new HttpError(429, "Too many requests for this vault.");
+    if (!rates.take("vault", vault, cfg.ratePerMinuteVault, 60_000)) throw new HttpError(429, "Too many requests for this vault.");
     takeDailyBudget();
     try {
       const { hash } = await sendLegacy(vault, "approveBySig", [pendingId, deadline, signature], 700_000n);
@@ -242,7 +251,7 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
   app.post("/v1/deposit", wrap(async (req, res) => {
     const b = depositSchema.parse(req.body);
     await assertWarrantVault(b.vault);
-    if (!vaultLimit.take(b.vault)) throw new HttpError(429, "Too many requests for this vault.");
+    if (!rates.take("vault", b.vault, cfg.ratePerMinuteVault, 60_000)) throw new HttpError(429, "Too many requests for this vault.");
     takeDailyBudget();
     const sig = b.signature.slice(2);
     if (sig.length !== 130) throw new HttpError(400, "signature must be 65 bytes");
@@ -257,6 +266,8 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
     }
   }));
 
+  mountFacilitator(app, { cfg, publicClient, relayerAddress: account.address, assertWarrantVault, submitIntent, settlements, wrap });
+
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof HttpError) return void res.status(err.status).json({ error: err.message });
     if (err instanceof z.ZodError) {
@@ -266,7 +277,15 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
     res.status(500).json({ error: explainError(err) });
   });
 
-  return { app, relayerAddress: account.address };
+  return { app, relayerAddress: account.address, close: () => {
+      clearInterval(pruneTimer);
+      try {
+        db.close();
+      } catch {
+        /* already closed */
+      }
+    },
+  };
 }
 
 export class HttpError extends Error {

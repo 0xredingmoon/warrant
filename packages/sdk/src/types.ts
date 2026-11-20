@@ -31,9 +31,16 @@ export interface Mandate {
   id: bigint;
   params: MandateParams;
   spentTotal: bigint;
-  periodSpent: bigint;
-  periodIndex: bigint;
   revoked: boolean;
+}
+
+/** How much of a mandate's rolling period cap is in use right now. */
+export interface WindowState {
+  /** spent within the trailing `periodLength` (counted a little conservatively: up to one eighth of the period extra) */
+  spent: bigint;
+  /** the oldest counted spend: how much frees up and when (unix seconds). 0 when nothing is counted. */
+  nextReleaseAmount: bigint;
+  nextReleaseAt: number;
 }
 
 export interface PaymentIntent {
