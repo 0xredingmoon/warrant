@@ -8,3 +8,8 @@ node_modules/
 *.key
 *.keystore
 .DS_Store
+.demo/
+web/.next/
+dist/
+*.tsbuildinfo
+deployments/fork.json

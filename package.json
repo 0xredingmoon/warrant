@@ -1,0 +1,23 @@
+{
+  "name": "warrant",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Spending mandates for AI agents on stablecoins (Aevum Builder Challenge #1)",
+  "packageManager": "pnpm@10.34.6",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "abis": "node scripts/gen-abis.mjs",
+    "build": "pnpm -r --filter './packages/*' build",
+    "typecheck": "pnpm -r typecheck",
+    "test:sdk": "pnpm --filter @warrant/sdk test",
+    "fork": "bash scripts/fork.sh",
+    "demo": "pnpm --filter @warrant/demo demo",
+    "demo:fork": "pnpm --filter @warrant/demo demo:fork",
+    "demo:aevum": "pnpm --filter @warrant/demo demo:aevum",
+    "relayer": "pnpm --filter @warrant/relayer start",
+    "mcp": "pnpm --filter @warrant/mcp start",
+    "web:dev": "pnpm --filter @warrant/web dev",
+    "web:build": "pnpm --filter @warrant/web build"
+  }
+}
