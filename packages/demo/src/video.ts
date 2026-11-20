@@ -87,7 +87,9 @@ if (!live) {
   // save the new key before any money moves to it: a failure in between must not strand funds at an address nobody can sign for
   writeFileSync(ownerKeyFile, ownerKey + "\n", { mode: 0o600 });
   let need = DEPOSIT;
-  for (const source of [prevOwner, keys.merchantA, deployer].filter(Boolean)) {
+  const testerFile = resolve(ROOT, ".demo", "tester.key");
+  const tester = existsSync(testerFile) ? privateKeyToAccount(readFileSync(testerFile, "utf8").match(/0x[0-9a-fA-F]{64}/)![0] as Hex) : undefined;
+  for (const source of [prevOwner, keys.merchantA, tester, deployer].filter(Boolean)) {
     const have = await getTokenBalance(publicClient, TOKEN, source.address);
     const amount = have < need ? have : need;
     if (amount === 0n) continue;
@@ -408,7 +410,7 @@ try {
   console.log("vault", vault);
 
   /* 3. deposit */
-  await caption(dash, "03 · Fund it", "Deposit tUSD8. The owner only signs a transfer authorisation (EIP-3009); a relayer submits it and pays the gas.");
+  await caption(dash, "03 · Fund it", "Deposit tUSD8. The owner only signs a transfer authorisation (EIP-3009, no gas). A relayer sends it, and the panel follows it to the block.");
   await uncaption(dash);
   await clickText("button", "Deposit");
   await typeInto('input[inputmode="decimal"]', DEPOSIT_TEXT);
