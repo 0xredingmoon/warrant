@@ -282,6 +282,11 @@ describe("x402 paywall", () => {
     expect((denied.outcome as any).check.reason).toBe("MerchantNotAllowed");
     expect(denied.response.status).toBe(402);
 
+    // either wire version, chosen by the client
+    const v1 = await x402Fetch(x, url, {}, { fetch: spyFetch, prefer: 1 });
+    expect(v1.outcome.kind).toBe("paid");
+    expect(v1.response.headers.get("x-payment-response")).toBeTruthy();
+
     // the agent can decline on price
     const declined = await x402Fetch(x, url, {}, { fetch: spyFetch, approve: () => false });
     expect(declined.outcome.kind).toBe("failed");

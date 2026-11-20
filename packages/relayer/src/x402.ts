@@ -245,11 +245,15 @@ export function mountFacilitator(app: Express, ctx: FacilitatorCtx) {
     }
     if (pending.status === "Approved") {
       const from = BigInt(known.queueBlock ?? "0");
-      const entries = await getAuditLog({ publicClient, vault: c.vault, fromBlock: from, indexerUrl: cfg.indexerUrl });
-      const paid = entries.find((e) => e.kind === "PaymentExecuted" && String((e.args as any).invoiceRef).toLowerCase() === known.invoiceRef.toLowerCase());
-      if (paid) {
-        ctx.settlements.put({ ...known, status: "settled", txHash: paid.txHash, reason: null });
-        return { success: true, ...base, transaction: paid.txHash };
+      // the node that reports the approval may not have indexed its logs yet: look a few times before giving up
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt) await new Promise((r) => setTimeout(r, 1500));
+        const entries = await getAuditLog({ publicClient, vault: c.vault, fromBlock: from, indexerUrl: attempt ? undefined : cfg.indexerUrl });
+        const paid = entries.find((e) => e.kind === "PaymentExecuted" && String((e.args as any).invoiceRef).toLowerCase() === known.invoiceRef.toLowerCase());
+        if (paid) {
+          ctx.settlements.put({ ...known, status: "settled", txHash: paid.txHash, reason: null });
+          return { success: true, ...base, transaction: paid.txHash };
+        }
       }
       return { success: false, errorReason: "settlement_not_found", errorMessage: "Approved, but the payment transaction could not be located yet. Retry shortly.", ...base };
     }

@@ -297,14 +297,16 @@ export interface X402FetchOptions {
   /** why the agent is paying: hashed into the on-chain `intentHash` */
   context?: string | Record<string, unknown>;
   fetch?: typeof fetch;
+  /** which wire version to speak when a server offers both (default 2) */
+  prefer?: X402Version;
 }
 
 /** Parse a 402 response into the warrant requirements it offers (v2 header first, then the v1 body). */
-export async function parsePaymentRequired(res: Response): Promise<
+export async function parsePaymentRequired(res: Response, prefer: X402Version = 2): Promise<
   { version: 2; envelope: PaymentRequiredV2; req: RequirementsV2 } | { version: 1; envelope: PaymentRequiredV1; req: RequirementsV1 } | undefined
 > {
   const h = res.headers.get(X402_HEADERS.v2.required);
-  if (h) {
+  if (h && prefer === 2) {
     try {
       const envelope = decodeHeader<PaymentRequiredV2>(h);
       const req = envelope.accepts?.find((a) => a.scheme === WARRANT_SCHEME);
@@ -322,6 +324,7 @@ export async function parsePaymentRequired(res: Response): Promise<
     const req = (body as PaymentRequiredV2).accepts.find((a) => a.scheme === WARRANT_SCHEME);
     if (req) return { version: 2, envelope: body as PaymentRequiredV2, req };
   }
+  if (h && prefer === 1) return parsePaymentRequired(res, 2); // a v2-only server: speak v2
   return undefined;
 }
 
@@ -336,7 +339,7 @@ export async function x402Fetch(agent: X402Agent, url: string, init: RequestInit
   const first = await doFetch(url, init);
   if (first.status !== 402) return { response: first, outcome: { kind: "free" } };
 
-  const parsed = await parsePaymentRequired(first);
+  const parsed = await parsePaymentRequired(first, opts.prefer);
   if (!parsed) return { response: first, outcome: { kind: "failed", reason: "402 without a warrant payment option" } };
   const req = parsed.req;
   const amountAtomic = BigInt(parsed.version === 1 ? (req as RequirementsV1).maxAmountRequired : (req as RequirementsV2).amount);

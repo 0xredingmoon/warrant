@@ -23,7 +23,7 @@ export function toMarkdown(r: RunReport): string {
   return [
     `# Demo run on ${net}`,
     "",
-    `Recorded ${r.finishedAt}. ${txs} transactions, ${refused} payments refused by the vault before any transaction was sent.`,
+    `Recorded ${r.finishedAt}. ${txs} transactions, ${refused} of them refusals the vault recorded on-chain (PaymentRefused events): no money moved in those.`,
     "",
     "| | |",
     "| --- | --- |",
@@ -40,7 +40,7 @@ export function toMarkdown(r: RunReport): string {
     "| --- | --- | --- | --- |",
     ...r.rows.map(
       (x) =>
-        `| ${x.step} | ${LABEL[x.outcome]} | ${x.text.replaceAll("|", "\\|")} | ${x.txHash ? `[${x.txHash}](${x.url})` : "none: refused by the vault's dry run, nothing sent"} |`,
+        `| ${x.step} | ${LABEL[x.outcome]} | ${x.text.replaceAll("|", "\\|")} | ${x.txHash ? `[${x.txHash}](${x.url})` : "none"} |`,
     ),
     "",
   ].join("\n");
