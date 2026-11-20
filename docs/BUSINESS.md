@@ -24,13 +24,14 @@ receipts rather than reviews.
 - Payment gas on Aevum is 151k to 203k. On a mainnet where gas costs real money, a 10 bps fee on a 0.10 payment
   (0.0001) would be below the cost of submitting it. The model works for payments of a few dollars and up at 10 bps.
   Sub-dollar payments need either a minimum fee, a higher bps for that tier, or batched settlement. Batching is not built.
-- Demo run on testnet: 0.90 gross, 0.0009 fee, 14 transactions in total, of which 3 were payments from the agent.
+- Demo run on testnet: 0.90 gross, 0.0009 fee, 17 transactions in total, of which 3 were payments from the agent and 3 were on-chain refusals.
 
 ## Where it fits
 
-The 402 flow in the demo is x402-shaped but is not wire-compatible with x402. Warrant does not compete with
-a payment rail; it sits between an owner and whatever rail the agent uses, and a rail adapter (x402, card, bank)
-is the obvious next integration. Merchants adopt it because the agent's owner asks for it, so the first customers are
+The 402 flow in the demo speaks x402 (v1 and v2 envelopes, headers and facilitator endpoints) but with its own
+payment scheme, `warrant`, instead of `exact`, so a stock x402 client cannot pay it. Warrant does not compete with
+a payment rail; it sits between an owner and whatever rail the agent uses, and a rail adapter (card, bank, `exact`
+over a vault-held balance) is the obvious next integration. Merchants adopt it because the agent's owner asks for it, so the first customers are
 the owners (teams running agents with budgets), and the merchant-side fee follows the volume they bring.
 
 ## Not proven

@@ -12,17 +12,18 @@ Built for the [Aevum Builder Challenge #1](https://dorahacks.io/hackathon/qday/d
 
 | Contract | Address | Source |
 | --- | --- | --- |
-| WarrantFactory | [`0x9D2CF5776359fD502a1a09862D8Ef03F41446442`](https://explorer-test.qday.info/address/0x9D2CF5776359fD502a1a09862D8Ef03F41446442) | [verified](https://explorer-test.qday.info/address/0x9D2CF5776359fD502a1a09862D8Ef03F41446442?tab=contract) |
-| AgentRegistry | [`0x5Efd32A5BC15880CCa0bF2E19346316E3C00762a`](https://explorer-test.qday.info/address/0x5Efd32A5BC15880CCa0bF2E19346316E3C00762a) | [verified](https://explorer-test.qday.info/address/0x5Efd32A5BC15880CCa0bF2E19346316E3C00762a?tab=contract) |
+| WarrantFactory | [`0x66687369d9C683aaaaDAe98b747b63eE7e0662E3`](https://explorer-test.qday.info/address/0x66687369d9C683aaaaDAe98b747b63eE7e0662E3) | [verified](https://explorer-test.qday.info/address/0x66687369d9C683aaaaDAe98b747b63eE7e0662E3?tab=contract) |
+| AgentRegistry | [`0xD0442513fd53FA91c411939648F9edbBF2ed747d`](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d) | [verified](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d?tab=contract) |
 | tUSD8 (existing token) | [`0x456569838f1d43009A91ebA4263147Afd7233483`](https://explorer-test.qday.info/address/0x456569838f1d43009A91ebA4263147Afd7233483) | |
 
-Deployment transactions (block 3658490): [AgentRegistry](https://explorer-test.qday.info/tx/0x6e278be67d5c7c048c594a63f49b28cf7c12d9ec3955832660554c79941b4527),
-[WarrantFactory](https://explorer-test.qday.info/tx/0x14af8300b2ad7533f71f2fd359e15189bd8513e30b1428bcde02a39b1f085648), [`registry.setFactory`](https://explorer-test.qday.info/tx/0x2eb58ef2fc4f4c8946616c48ed53beecd210917b5bfdd7f1ef2a0097c46cf1aa). Protocol fee 10 bps
+Deployment transactions (block 3661989): [AgentRegistry](https://explorer-test.qday.info/tx/0x90d2909f9233ad7488a986c86534b61979ea9c9c41b1dc47ee7f9e2dbc442c06),
+[WarrantFactory](https://explorer-test.qday.info/tx/0x5675d377f3236b491a90eaafaf0ca2d76f5519265fc418b8a6cc498feaf12b4b), [`registry.setFactory`](https://explorer-test.qday.info/tx/0xb84581507c2cc4fdb937d43fd54448581ecad7ddb970910aeeb644a212d30ff1). Protocol fee 10 bps
 (0.10%), treasury is the deployer address `0x462E1FcE506B5067cb46531659195C0417f9e86f`. Machine-readable copy: [`deployments/aevum.json`](deployments/aevum.json).
 
 A complete scenario was run against these contracts on 2026-11-20: [`docs/live-run.md`](docs/live-run.md)
-lists all 14 transactions with explorer links. The vault from that run,
-[`0x927d8b1030E90d94039b3281A3E4b415E11c6aba`](https://explorer-test.qday.info/address/0x927d8b1030E90d94039b3281A3E4b415E11c6aba), is also source-verified.
+lists all 17 transactions with explorer links, three of them refusals that the vault recorded on-chain. The vault
+from that run, [`0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16`](https://explorer-test.qday.info/address/0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16),
+is also source-verified (the explorer links every vault deployed by the factory to the same verified source).
 
 ## What the demo shows
 
@@ -44,21 +45,26 @@ with the transaction hash; the merchant re-reads the chain before it serves anyt
 The agent key held no tQDAY at any point. Gas came from a relayer. Ledgerline received 0.8991 tUSD8 of the
 0.90 gross; 0.0009 went to the protocol treasury.
 
-Refusals are dry runs (`check`, a read call): no transaction is sent, so they leave no trace on the explorer. The vault would also
-refuse the same payment on-chain if someone submitted it (the transaction reverts with the reason).
+A refusal is not only a message to the agent. The relayer submits the signed intent through `payOrRefuse`: when a rule
+fails, that call succeeds, moves nothing and emits `PaymentRefused(mandateId, agent, merchant, amount, reason, invoiceRef, intentHash)`.
+So the attempt shows up in the explorer's logs for the vault, in the dashboard's activity list ("Refused on-chain") and in
+`getAuditLog`. A refusal costs the relayer gas, so each mandate logs at most 1,000 of them (`MAX_LOGGED_REFUSALS`) and the
+relayer rate-limits refusals per vault and per day. A plain `pay()` call still reverts with `PaymentRejected(reason)`.
 
 ## Repository
 
 | Path | What it is |
 | --- | --- |
 | `src/` | Solidity: `WarrantVault`, `WarrantFactory`, `AgentRegistry` |
-| `test/` | Foundry tests (145), including fork tests against the real tUSD8 |
-| `packages/sdk` | `@warrant/sdk`: viem client, EIP-712 signing, dry runs with plain-language reasons, chunked audit log, registry, relayer client |
-| `packages/relayer` | `@warrant/relayer`: Express service that submits agent intents and owner approvals and pays gas |
-| `packages/merchant` | `@warrant/merchant`: HTTP 402 invoices and on-chain payment verification (Express middleware) |
+| `test/` | Foundry tests (162), including fork tests against the real tUSD8 |
+| `packages/sdk` | `@warrant/sdk`: viem client, EIP-712 signing, dry runs with plain-language reasons, `payOrRefuse`, audit log (indexer first, chunked RPC fallback), registry, relayer client, x402 client (`x402Fetch`) |
+| `packages/relayer` | `@warrant/relayer`: Express service that submits agent intents and owner approvals and pays gas; also an x402 facilitator (`/supported`, `/verify`, `/settle`) |
+| `packages/store` | `@warrant/store`: small SQLite layer (Node's built-in `node:sqlite`) for the relayer's limits and settlements and the merchant's invoices |
+| `packages/merchant` | `@warrant/merchant`: HTTP 402 paywall (native Warrant flow and x402 v1/v2) with on-chain payment verification (Express middleware) |
 | `packages/mcp` | `@warrant/mcp`: MCP server with `check_mandate` and `pay_with_mandate` |
-| `packages/demo` | The scenario above, runnable on a fork or on Aevum |
-| `web/` | Next.js owner dashboard (wagmi, viem, injected wallet) |
+| `packages/demo` | The scenario above, runnable on a fork or on Aevum; `src/serve.ts` runs the demo merchant and notes site as long-lived services; `src/video.ts` records the demo video |
+| `web/` | Next.js owner dashboard (wagmi, viem, injected wallet); builds to static files |
+| `Dockerfile`, `docker-compose.yml`, `render.yaml`, `fly.toml`, `railway.json` | Container and hosting configs, see [Docker and hosting](#docker-and-hosting) |
 | `docs/` | [`DESIGN.md`](docs/DESIGN.md), [`BUSINESS.md`](docs/BUSINESS.md), [`gas-report.md`](docs/gas-report.md), [`live-run.md`](docs/live-run.md) |
 
 ## Run it
@@ -70,8 +76,8 @@ git clone --recursive <repo-url> warrant && cd warrant
 pnpm install
 forge build && pnpm abis        # compile contracts, regenerate packages/sdk/src/abis.ts
 pnpm build                       # sdk, relayer, merchant, mcp
-forge test                       # 145 tests; fork tests need https://rpc-test.qday.info
-pnpm -r --filter './packages/*' test   # 23 unit tests
+forge test                       # 162 tests; fork tests need https://rpc-test.qday.info
+pnpm -r typecheck && pnpm -r test      # 56 unit tests (store 3, sdk 20, mcp 4, merchant 12, relayer 17)
 ```
 
 ### On a local fork (nothing touches the real network)
@@ -98,7 +104,7 @@ and withdraws the vault's unspent tUSD8 back to the owner at the end (the mercha
 ### Relayer
 
 ```bash
-RELAYER_PRIVATE_KEY=0x… FACTORY_ADDRESS=0x9D2CF5776359fD502a1a09862D8Ef03F41446442 pnpm relayer      # listens on :8787
+RELAYER_PRIVATE_KEY=0x… FACTORY_ADDRESS=0x66687369d9C683aaaaDAe98b747b63eE7e0662E3 pnpm relayer      # listens on :8787
 ```
 
 | Variable | Default | |
@@ -108,10 +114,13 @@ RELAYER_PRIVATE_KEY=0x… FACTORY_ADDRESS=0x9D2CF5776359fD502a1a09862D8Ef03F4144
 | `RPC_URL`, `CHAIN_ID` | `https://rpc-test.qday.info`, `44005` | |
 | `PORT` | `8787` | |
 | `RELAYER_API_KEY` | none | If set, every POST needs `Authorization: Bearer …`. |
-| `RATE_PER_MINUTE_IP`, `RATE_PER_MINUTE_VAULT`, `DAILY_TX_CAP` | `60`, `30`, `500` | In-memory limits. Run one process, or move them to a shared store before scaling out. |
+| `RATE_PER_MINUTE_IP`, `RATE_PER_MINUTE_VAULT`, `DAILY_TX_CAP` | `60`, `30`, `500` | Limits, counted in SQLite so they survive a restart. |
+| `REFUSALS_PER_HOUR_VAULT`, `DAILY_REFUSAL_CAP` | `20`, `200` | Caps on on-chain refusals the relayer will pay gas for. |
+| `DATABASE_PATH` | `./data/relayer.db` | SQLite file (limits and x402 settlements). One process per file. |
+| `INDEXER_URL` | the explorer | Blockscout-compatible API used to find a vault's logs quickly. |
 | `TRUSTED_IP_HEADER` | none | e.g. `x-forwarded-for` behind a proxy. |
 
-Endpoints: `GET /health`, `POST /v1/check` (free dry run), `POST /v1/pay`, `POST /v1/approve`, `POST /v1/deposit`.
+Endpoints: `GET /health`, `POST /v1/check` (free dry run), `POST /v1/pay`, `POST /v1/approve`, `POST /v1/deposit`, and the x402 facilitator `GET /supported`, `POST /verify`, `POST /settle`.
 `/v1/pay` runs the vault's `check` first, so a refused payment costs no gas, and answers
 `{status: "executed" | "queued" | "rejected", check: {reason, message}, txHash, explorerUrl}`.
 
@@ -167,18 +176,60 @@ reference, and cover the amount. A payment that is only queued is not delivered.
 ### Dashboard
 
 ```bash
-cp web/.env.example web/.env.local     # defaults point at the Aevum deployment above
-pnpm web:dev                            # http://localhost:3000
-pnpm web:build && pnpm --filter @warrant/web start
+pnpm web:dev                            # http://localhost:3000, defaults come from deployments/aevum.json
+pnpm web:static                         # static export to web/out (any static host)
+RELAYER_URL=http://localhost:8787 node scripts/serve-web.mjs    # serve web/out on :3000, writes /config.js from the environment
 ```
+
+The dashboard has no server of its own. Its settings (relayer, RPC, explorer, factory) are read at load time from
+`/config.js`, so one build serves any relayer; `NEXT_PUBLIC_*` variables ([`web/.env.example`](web/.env.example))
+override the committed defaults at build time.
 
 Create a vault, deposit (one signature through the relayer if `NEXT_PUBLIC_RELAYER_URL` is set, otherwise
 approve and deposit), issue a mandate from a template or custom limits (it can generate an agent key and register
 the agent identity), approve or reject queued payments, freeze, set a guardian, revoke, read the activity log with a
-link to every transaction, and see agent reputation. Needs an injected wallet (MetaMask, Rabby) on chain 44005.
+link to every transaction, and see agent reputation. Needs an injected wallet (MetaMask, Rabby).
+
+Wallet handling: if the wallet is on another network the page shows a banner with a "Switch network" button that calls
+`wallet_switchEthereumChain` and, if the wallet doesn't know Aevum (error 4902), `wallet_addEthereumChain` with the
+chain id 44005, the RPC and the explorer. A "no" in the wallet is shown as "You declined…", and a rejected signature or
+transaction as "You rejected the request in your wallet. Nothing was sent." Nothing is retried behind your back.
+A vault's history is read from the explorer's index starting at the vault's `createdAtBlock` (one request), with the
+RPC in 1,000-block chunks as the fallback.
 
 `web/e2e/smoke.mjs` drives the whole UI in headless Chrome against the local fork with a mock wallet (create vault,
 gasless deposit, mandate with registration, queued payment, approval, freeze, revoke, withdraw) and saves screenshots.
+
+## x402
+
+[x402](https://github.com/coinbase/x402) is the HTTP 402 payment convention: the server answers `402` with its
+requirements, the client retries with a signed payment header, a facilitator verifies and settles. Warrant speaks both
+wire versions (v1 `X-PAYMENT`, v2 `PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE`) with the envelope, headers and facilitator
+endpoints as in the spec. The scheme is `warrant`, not `exact`: `exact` hands the facilitator an EIP-3009 transfer from
+the agent's wallet, while here the payload is the agent's `PaymentIntent`, and the vault applies the mandate when the
+facilitator settles it. A stock x402 client cannot pay with it; `x402Fetch` from `@warrant/sdk` can, and a merchant that
+passes `facilitatorUrl` to `paywall()` answers both the native flow and x402. Settling the same payment twice returns
+the first result, which is how a payment that waited for the owner is collected after approval.
+
+## Docker and hosting
+
+```bash
+echo RELAYER_PRIVATE_KEY=0x… > .env     # throwaway testnet key with a little tQDAY
+docker compose up --build               # dashboard :8080, relayer + x402 facilitator :8787, Ledgerline API :8788, notes site :8789
+```
+
+`Dockerfile` has three targets (`web`: static dashboard behind nginx, whose entrypoint writes `/config.js` from the
+environment; `demo`: the merchant and notes site; default: the relayer). SQLite files live on volumes.
+[`render.yaml`](render.yaml), [`fly.toml`](fly.toml) and [`railway.json`](railway.json) deploy the relayer and the static
+dashboard. These configs and the compose file have not been run on a hosting provider; I could only build and run the
+pieces locally with Node.
+
+## Demo video
+
+`pnpm --filter @warrant/demo exec tsx src/video.ts` records the demo (headless Chrome driving the real dashboard
+against Aevum, the agent side driven from Node). The wallet in the recording is a stand-in for `window.ethereum` that
+signs in the recording process and confirms automatically; every transaction in it is real and linked in the run log.
+Waits for block confirmation are sped up and marked on screen.
 
 ## Why a mandate instead of a hot wallet
 
@@ -228,20 +279,25 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
 
 | Suite | Count | What it covers |
 | --- | --- | --- |
-| Foundry | 145 | Every reason code and cap edge, signature binding, approval queue, funding (incl. reentrancy), factory and registry, fuzzing and invariants, Shanghai opcode scan, deploy script, fork tests on the real tUSD8 |
-| vitest | 23 | Reason messages, signing and recovery, template validity, 1,000-block chunking and halving, relayer guards (dev key refusal, API key, rate limit, bad input), merchant 402 flow, MCP tools over an in-memory transport |
+| Foundry | 162 | Every reason code and cap edge, the rolling window across bucket boundaries, `payOrRefuse` and `PaymentRefused`, signature binding, approval queue, funding (incl. reentrancy), factory and registry, fuzzing and invariants, Shanghai opcode scan, deploy script, fork tests on the real tUSD8 |
+| vitest | 56 | store (3), sdk (20), mcp (4), merchant (12), relayer (17): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), merchant 402 and x402 flows, MCP tools over an in-memory transport |
 | Scenario | 1 | `pnpm demo:fork` and `pnpm demo:aevum` assert every step's outcome |
-| UI smoke | 1 | `web/e2e/smoke.mjs` on the fork; `web/e2e/live-readonly.mjs` reads the live vault through the production build |
+| UI | 2 | `web/e2e/smoke.mjs` drives the dashboard on the fork with a mock wallet; `web/e2e/live-readonly.mjs` reads a live vault |
 
 ## Known limitations
 
-- Spend windows are fixed windows: a burst across a window edge can spend up to 2x `periodCap` within one
-  `periodLength`. `perTxCap` and `totalCap` still bound it.
+- The spend window is rolling but bucketed: spending is booked into 8 buckets of `periodLength / 8`, so a payment counts
+  for at least `periodLength` and at most one bucket longer. The cap is never exceeded in any window; the cost is that
+  spend frees up slightly late. `perTxCap` and `totalCap` apply as before.
 - `createVault` deploys a full contract (3.6M gas) rather than a clone, which keeps the verified source simple.
-- The relayer's rate limits and the merchant's invoice store are in memory.
-- The dashboard caches activity per vault in `localStorage` and reads from the factory's deployment block, so a first load
-  scans the range since deployment in 1,000-block chunks.
+- On-chain refusals cost the relayer gas. They are capped per mandate in the contract and rate-limited in the relayer,
+  but a relayer that pays for every refusal can still be drained slowly; a hosted one would charge for it.
+- SQLite files belong to one process each. Running several relayers needs a shared database.
+- The `warrant` x402 scheme is ours. Stock x402 clients and facilitators cannot use it.
+- No ERC-4337 bundler exists on Aevum, so there is no account abstraction here; the vault is the account.
+- The identity and reputation registry is our own ERC-8004-shaped contract, not the official registry.
 - tUSD8 is admin-pausable; a paused token makes payments revert without changing state.
+- The compose file and the hosting configs have not been deployed on a hosting provider.
 - Not audited. Testnet tokens only.
 
 ## License

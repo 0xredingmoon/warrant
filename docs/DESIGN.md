@@ -20,6 +20,16 @@ and `totalCap`; the owner can change the allowlist later (narrowing is instant).
 Caps are checked against the **gross** amount that leaves the vault. The fee is taken out of what the merchant
 receives.
 
+### Spend window
+
+`periodCap` bounds spending in **any** rolling `periodLength`, not in a calendar-aligned period. Spending is booked
+into 8 buckets of `ceil(periodLength / 8)` seconds kept in a ring of 9 slots. A payment is checked against every
+bucket that overlaps the trailing window and the sum, including the new payment, must stay within `periodCap`. A
+payment therefore counts for at least `periodLength` and at most one bucket longer: the cap is never exceeded in
+any window, and spend frees up at most one bucket late. `periodSpent(mandateId)` and `nextRelease(mandateId)`
+(the oldest counted bucket's amount and when it stops counting) feed the dashboard's meter. This replaces an earlier fixed-window version, which
+allowed up to 2x `periodCap` across a window edge.
+
 ## Reason codes (`IWarrantVault.Reason`)
 
 `Ok, ApprovalRequired, MandateNotFound, MandateRevoked, VaultFrozen, NotYetValid, MandateExpired,
@@ -30,6 +40,20 @@ InsufficientBalance`. `check()` returns one; `pay()` reverts with `PaymentReject
 
 Check order: mandate exists, intent deadline, nonce, signature, mandate revoked, vault frozen, validity window,
 amount, merchant, per-tx, merchant per-tx, period, merchant total, total, invoice, balance, approval threshold.
+
+## Refusals on-chain
+
+`pay()` reverts for a refused payment, and a reverted transaction leaves no log. `payOrRefuse(intent, signature)` is for
+relayers: when a rule fails after the signature has proven the intent is authentic it emits
+`PaymentRefused(mandateId indexed, agent indexed, merchant indexed, amount, reason, invoiceRef, intentHash)` and
+returns without moving funds. Intents that were not signed by the mandate's agent are not recorded (anyone could
+otherwise fill the log), the nonce is consumed so one signed intent logs once, and a mandate logs at most
+`MAX_LOGGED_REFUSALS` = 1,000 (`RefusalLogFull` after that). Problems with the intent itself (`MandateNotFound`,
+`IntentExpired`, `NonceUsed`, `BadSignature`) revert instead of logging. The SDK reads these events into
+the same audit log as payments, so the dashboard shows "Refused on-chain" with a link to the transaction.
+
+Each vault stores `createdAtBlock`, which lets clients start reading logs at the vault's creation instead of at the
+factory's deployment.
 
 ## EIP-712
 
