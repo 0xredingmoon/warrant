@@ -96,15 +96,25 @@ export function createMerchant(cfg: MerchantConfig) {
     return ok;
   }
 
-  async function verify(ref: Hex, txHash: Hex): Promise<Verification> {
+  /**
+   * `waitMs`: how long to keep looking for the receipt. The facilitator has just seen the transaction mined, but the RPC
+   * behind a load balancer can answer this merchant from a node that is a block behind. Without a wait the customer
+   * would pay and then be told the settlement could not be verified.
+   */
+  async function verify(ref: Hex, txHash: Hex, opts: { waitMs?: number } = {}): Promise<Verification> {
     const s = store.get(ref);
     if (!s) return { state: "invalid", reason: "Unknown invoice reference." };
     if (s.expires < Math.floor(Date.now() / 1000) && !s.paidTx) return { state: "invalid", reason: "Invoice expired. Request a new one." };
     let receipt;
-    try {
-      receipt = await cfg.publicClient.getTransactionReceipt({ hash: txHash });
-    } catch {
-      return { state: "invalid", reason: "Transaction not found (yet)." };
+    const giveUp = Date.now() + (opts.waitMs ?? 0);
+    for (;;) {
+      try {
+        receipt = await cfg.publicClient.getTransactionReceipt({ hash: txHash });
+        break;
+      } catch {
+        if (Date.now() >= giveUp) return { state: "invalid", reason: "Transaction not found (yet)." };
+        await new Promise((r) => setTimeout(r, 600));
+      }
     }
     if (receipt.status !== "success") return { state: "invalid", reason: "Transaction reverted." };
     const executed = parseEventLogs({ abi: warrantVaultAbi, logs: receipt.logs, eventName: "PaymentExecuted" }).filter(
@@ -242,7 +252,7 @@ export function createMerchant(cfg: MerchantConfig) {
         );
       }
       // do not take the facilitator's word for it
-      const onchain = await verify(ref, settle.transaction as Hex);
+      const onchain = await verify(ref, settle.transaction as Hex, { waitMs: 15_000 });
       if (onchain.state !== "executed") return fail(502, "settlement_not_verified", onchain.state === "invalid" ? onchain.reason : "The settlement could not be verified on-chain.");
       res.set(respHeader, encodeHeader(settle));
       serve(res, next, ref, onchain);

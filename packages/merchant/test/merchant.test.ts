@@ -187,6 +187,28 @@ describe("x402 paywall", () => {
     });
   }
 
+  it("waits for the receipt when the RPC node it asks is a block behind the facilitator's", async () => {
+    const s = await serveX();
+    const { ref, header } = await paymentFor(`${s.url}/data`, 2);
+    receiptTx = ("0x" + "ab".repeat(32)) as Hex;
+    receiptRef = ref;
+    facilitatorReply = { verify: { isValid: true }, settle: { success: true, transaction: receiptTx, network: "eip155:44005" } };
+    const real = (client as any).getTransactionReceipt;
+    let looks = 0;
+    (client as any).getTransactionReceipt = async (a: any) => {
+      if (++looks < 3) throw new Error("not found"); // the first two lookups hit a node that has not seen the block
+      return real(a);
+    };
+    try {
+      const r = await fetch(`${s.url}/data`, { headers: header });
+      expect(r.status).toBe(200);
+      expect(looks).toBe(3);
+    } finally {
+      (client as any).getTransactionReceipt = real;
+      s.close();
+    }
+  });
+
   it("does not serve when the facilitator says success but the chain does not agree", async () => {
     const s = await serveX();
     const { ref, header } = await paymentFor(`${s.url}/data`, 2);

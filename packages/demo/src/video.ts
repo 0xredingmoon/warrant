@@ -460,7 +460,11 @@ try {
 
   /* 5. the agent works */
   const agent = new WarrantAgent({ signer: agentAccount, publicClient, chainId, vault, mandateId: 1n, relayerUrl: RELAYER, explorerUrl: explorer });
-  const buy = (url: string, label: string, prefer: 1 | 2 = 2) => chain(x402Fetch({ ...agent.cfg }, url, {}, { prefer, context: { task: label, url } }));
+  const buy = (url: string, label: string, prefer: 1 | 2 = 2) =>
+    chain(x402Fetch({ ...agent.cfg }, url, {}, { prefer, context: { task: label, url } })).then((r) => {
+      if (r.outcome.kind === "failed") console.error(`purchase "${label}" failed: ${r.outcome.reason} (HTTP ${r.response.status})`);
+      return r;
+    });
   const peek = async (url: string) => {
     const r = await fetch(url);
     const j: any = await r.json().catch(() => ({}));
