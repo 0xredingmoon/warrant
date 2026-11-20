@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useAccount } from "wagmi";
 import type { Address } from "viem";
 import { createVault, randomBytes32 } from "@warrant/sdk";
 import { isAddress, getAddress, zeroAddress } from "viem";
 import { CHAIN_ID, FACTORY } from "@/lib/config";
+import { ensureAevum } from "@/lib/network";
 import { addrLink, short } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
 import { useAudit, useVault, useVaults } from "@/lib/queries";
@@ -18,15 +19,23 @@ import { SafetyPanel } from "./SafetyPanel";
 
 function NetworkBanner() {
   const { wrongNetwork } = useClients();
-  const { switchChain, isPending, error } = useSwitchChain();
+  const [state, setState] = useState<{ pending: boolean; message?: string }>({ pending: false });
   if (!wrongNetwork) return null;
   return (
     <div className="banner stop" role="alert">
       <span>Your wallet is on a different network. Warrant runs on QDay Aevum testnet (chain {CHAIN_ID}).</span>
-      <button className="btn sm" disabled={isPending} onClick={() => switchChain({ chainId: CHAIN_ID })}>
-        {isPending ? "Switching…" : "Switch network"}
+      <button
+        className="btn sm"
+        disabled={state.pending}
+        onClick={async () => {
+          setState({ pending: true });
+          const r = await ensureAevum();
+          setState({ pending: false, message: r.ok ? undefined : r.message });
+        }}
+      >
+        {state.pending ? "Check your wallet…" : "Switch network"}
       </button>
-      {error && <span className="err">{error.message.split("\n")[0]}</span>}
+      {state.message && <span className="err">{state.message}</span>}
     </div>
   );
 }

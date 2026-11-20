@@ -129,6 +129,7 @@ select.input { padding-right: 28px; }
 .log .kind.pay { background: var(--ok); }
 .log .kind.queue { background: var(--warn); }
 .log .kind.stop { background: var(--stop); }
+.log .refused-tag { color: var(--stop); font-weight: 600; font-size: 12px; letter-spacing: 0.02em; margin-right: 8px; }
 .log a { font-size: 12.5px; white-space: nowrap; color: var(--ink-2); }
 .scan { height: 2px; background: var(--sunk); }
 .scan i { display: block; height: 100%; background: var(--ink); transition: width .2s; }

@@ -45,10 +45,21 @@ export function decodeRejection(err: unknown): WarrantRejected | undefined {
   return undefined;
 }
 
+/** True when the user said no in their wallet (EIP-1193 code 4001, or viem's UserRejectedRequestError). */
+export function isUserRejection(err: unknown): boolean {
+  let e: any = err;
+  for (let i = 0; e && i < 6; i++) {
+    if (e.code === 4001 || e.name === "UserRejectedRequestError" || /user (rejected|denied)/i.test(String(e.shortMessage ?? e.message ?? ""))) return true;
+    e = e.cause;
+  }
+  return false;
+}
+
 /** Friendly message for any error coming out of a vault/factory/registry call. */
 export function explainError(err: unknown): string {
   const rejected = decodeRejection(err);
   if (rejected) return rejected.message;
+  if (isUserRejection(err)) return "You rejected the request in your wallet. Nothing was sent.";
   if (err instanceof BaseError) {
     const reverted = err.walk((e) => e instanceof ContractFunctionRevertedError);
     if (reverted instanceof ContractFunctionRevertedError && reverted.data?.errorName) {

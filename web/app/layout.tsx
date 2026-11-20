@@ -16,6 +16,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
+      <head>
+        {/* deploy-time settings (relayer URL etc.); a plain blocking script so it runs before the app reads its config */}
+        <script src="/config.js" />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>

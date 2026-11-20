@@ -1,13 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
 import type { Address } from "viem";
-import { formatUsd, revokeMandate, type AuditEntry, type Mandate, type Pending, type VaultState } from "@warrant/sdk";
+import { formatUsd, revokeMandate, type AuditEntry, type Mandate, type Pending, type VaultState, type WindowState } from "@warrant/sdk";
 import { addrLink, dateTime, duration, pct, short, until } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
 import { useTx } from "@/lib/tx";
 import { NewMandateSheet } from "./NewMandateSheet";
 
-type Data = { state: VaultState; mandates: Mandate[]; pending: Pending[] } | undefined;
+type Data = { state: VaultState; mandates: Mandate[]; pending: Pending[]; windows: Map<string, WindowState> } | undefined;
 
 function merchantsFor(audit: AuditEntry[] | undefined, id: bigint) {
   const m = new Map<string, { allowed: boolean; perTxCap: bigint; totalCap: bigint }>();
@@ -38,15 +38,13 @@ function Meter({ label, spent, cap, note }: { label: string; spent: bigint; cap:
   );
 }
 
-function MandateCard({ m, vault, frozen, merchants, canAct }: { m: Mandate; vault: Address; frozen: boolean; merchants: ReturnType<typeof merchantsFor>; canAct: boolean }) {
+function MandateCard({ m, vault, frozen, merchants, canAct, win }: { m: Mandate; vault: Address; frozen: boolean; merchants: ReturnType<typeof merchantsFor>; canAct: boolean; win?: WindowState }) {
   const { clients } = useClients();
   const { run, busy } = useTx();
   const [confirming, setConfirming] = useState(false);
   const now = Math.floor(Date.now() / 1000);
   const p = m.params;
-  const idx = BigInt(Math.floor(Math.max(0, now - p.validAfter) / p.periodLength));
-  const periodSpent = m.periodIndex === idx ? m.periodSpent : 0n;
-  const resetAt = p.validAfter + (Number(idx) + 1) * p.periodLength;
+  const periodSpent = win?.spent ?? 0n;
   const status = m.revoked
     ? { label: "Revoked", cls: "stop" }
     : now >= p.expiry
@@ -74,7 +72,12 @@ function MandateCard({ m, vault, frozen, merchants, canAct }: { m: Mandate; vaul
       </div>
 
       <div className="meters">
-        <Meter label={`Current ${duration(p.periodLength)} window`} spent={periodSpent} cap={p.periodCap} note={live ? `Resets ${until(resetAt)}` : undefined} />
+        <Meter
+          label={`Spent in the last ${duration(p.periodLength)}`}
+          spent={periodSpent}
+          cap={p.periodCap}
+          note={live && win && win.spent > 0n ? `Rolling window: ${formatUsd(win.nextReleaseAmount)} frees up ${until(win.nextReleaseAt)}` : live ? `Counts any ${duration(p.periodLength)}, not a calendar period` : undefined}
+        />
         <Meter label="Lifetime" spent={m.spentTotal} cap={p.totalCap} />
       </div>
 
@@ -170,7 +173,7 @@ export function MandatePanel({ vault, data, audit, loading }: { vault: Address; 
         </div>
       ) : (
         ordered.map((m) => (
-          <MandateCard key={m.id.toString()} m={m} vault={vault} frozen={!!data?.state.frozen} merchants={merchantsFor(audit, m.id)} canAct={ready} />
+          <MandateCard key={m.id.toString()} m={m} vault={vault} frozen={!!data?.state.frozen} merchants={merchantsFor(audit, m.id)} canAct={ready} win={data?.windows.get(m.id.toString())} />
         ))
       )}
       {open && <NewMandateSheet vault={vault} onClose={() => setOpen(false)} />}

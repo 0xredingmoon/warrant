@@ -13,3 +13,7 @@ web/.next/
 dist/
 *.tsbuildinfo
 deployments/fork.json
+data/
+*.db
+*.db-shm
+*.db-wal

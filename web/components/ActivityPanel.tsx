@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { markCreation, type AuditEntry } from "@warrant/sdk";
 import { dateTime, txLink } from "@/lib/format";
-import { useAuditProgress, useClient } from "@/lib/queries";
+import { useAuditProgress, useAuditSource, useClient } from "@/lib/queries";
 
 const tone = (k: AuditEntry["kind"]) =>
-  k === "PaymentExecuted" || k === "Deposited" ? "pay" : k === "PaymentQueued" ? "queue" : k === "MandateRevoked" || k === "VaultFrozen" || k === "PendingRejected" || k === "PendingExpired" ? "stop" : "";
+  k === "PaymentExecuted" || k === "Deposited" ? "pay" : k === "PaymentQueued" ? "queue" : k === "PaymentRefused" || k === "MandateRevoked" || k === "VaultFrozen" || k === "PendingRejected" || k === "PendingExpired" ? "stop" : "";
 
 function When({ block }: { block: bigint }) {
   const client = useClient();
@@ -20,6 +20,7 @@ function When({ block }: { block: bigint }) {
 
 export function ActivityPanel({ vault, audit, loading, error }: { vault: Address; audit?: AuditEntry[]; loading: boolean; error: boolean }) {
   const progress = useAuditProgress(vault);
+  const source = useAuditSource(vault);
   const all = markCreation(audit ?? []);
   const rows = [...all].reverse();
   const shown = rows.slice(0, 60);
@@ -27,7 +28,9 @@ export function ActivityPanel({ vault, audit, loading, error }: { vault: Address
     <section className="panel" aria-labelledby="act-h">
       <div className="panel-h">
         <h2 id="act-h">Activity</h2>
-        <span className="hint">Read from chain logs, newest first. Refreshes every few seconds.</span>
+        <span className="hint">
+          Chain logs, newest first{source ? (source === "indexer" ? ", history from the explorer index" : ", history from the RPC") : ""}. Refreshes every few seconds.
+        </span>
       </div>
       {loading && progress < 100 && (
         <div className="scan" aria-label={`Reading history ${progress}%`}><i style={{ width: `${progress}%` }} /></div>
@@ -46,7 +49,11 @@ export function ActivityPanel({ vault, audit, loading, error }: { vault: Address
             {shown.map((e) => (
               <li key={`${e.txHash}-${e.logIndex}`}>
                 <When block={e.blockNumber} />
-                <span><i className={`kind ${tone(e.kind)}`} aria-hidden />{e.summary}</span>
+                <span>
+                  <i className={`kind ${tone(e.kind)}`} aria-hidden />
+                  {e.kind === "PaymentRefused" && <strong className="refused-tag">Refused on-chain</strong>}
+                  {e.summary}
+                </span>
                 <a className="mono" href={txLink(e.txHash)} target="_blank" rel="noreferrer">{e.txHash.slice(0, 8)}… ↗</a>
               </li>
             ))}

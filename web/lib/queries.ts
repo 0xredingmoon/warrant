@@ -6,13 +6,16 @@ import {
   getAgentReputation,
   getAuditLog,
   getTokenBalance,
+  getVaultCreatedBlock,
   getVaultState,
   getVaultsOf,
+  getWindow,
   listMandates,
   listPending,
   type AuditEntry,
+  type WindowState,
 } from "@warrant/sdk";
-import { DEPLOY_BLOCK, FACTORY, REGISTRY, TOKEN } from "./config";
+import { DEPLOY_BLOCK, FACTORY, INDEXER_URL, REGISTRY, TOKEN } from "./config";
 
 const POLL = 4000;
 
@@ -43,7 +46,10 @@ export function useVault(vault?: Address) {
         listMandates(client, vault!),
         listPending(client, vault!, { onlyOpen: true }),
       ]);
-      return { state, mandates, pending };
+      const windows = new Map<string, WindowState>(
+        await Promise.all(mandates.map(async (m) => [m.id.toString(), await getWindow(client, vault!, m.id)] as const)),
+      );
+      return { state, mandates, pending, windows };
     },
     refetchInterval: POLL,
   });
@@ -63,7 +69,7 @@ interface Cached {
   last: string;
   entries: (Omit<AuditEntry, "blockNumber" | "args"> & { blockNumber: string; args: Record<string, string> })[];
 }
-const cacheKey = (vault: string) => `warrant:audit:v1:${FACTORY}:${vault}`;
+const cacheKey = (vault: string) => `warrant:audit:v2:${FACTORY}:${vault}`;
 
 function readCache(vault: string): { last: bigint; entries: AuditEntry[] } | undefined {
   try {
@@ -82,7 +88,12 @@ function readCache(vault: string): { last: bigint; entries: AuditEntry[] } | und
 const revive = (a: Record<string, string>) => JSON.parse(JSON.stringify(a), (_k, v) => (typeof v === "string" && v.startsWith("bigint:") ? BigInt(v.slice(7)) : v));
 const freeze = (a: Record<string, unknown>) => JSON.parse(JSON.stringify(a, (_k, v) => (typeof v === "bigint" ? `bigint:${v}` : v)));
 
-/** Audit trail, read in chunks of at most 1,000 blocks (Aevum's eth_getLogs limit) and cached per vault. */
+/**
+ * Audit trail from the vault's creation block (`createdAtBlock`, stored in the contract; older vaults fall back to the
+ * deployment block). The first load asks the explorer's index for the whole history and reads only the newest blocks
+ * from the RPC; if the explorer is down it reads the RPC in chunks of at most 1,000 blocks (Aevum's eth_getLogs limit).
+ * The result is cached per vault in localStorage, so later refreshes only read the blocks since.
+ */
 export function useAudit(vault?: Address) {
   const client = useClient();
   const qc = useQueryClient();
@@ -92,7 +103,7 @@ export function useAudit(vault?: Address) {
     queryFn: async () => {
       const cached = readCache(vault!);
       const head = await client.getBlockNumber();
-      const from = cached ? cached.last + 1n : DEPLOY_BLOCK;
+      const from = cached ? cached.last + 1n : await getVaultCreatedBlock(client, vault!).catch(() => DEPLOY_BLOCK);
       let fresh: AuditEntry[] = [];
       if (head >= from) {
         fresh = await getAuditLog({
@@ -100,6 +111,8 @@ export function useAudit(vault?: Address) {
           vault: vault!,
           fromBlock: from,
           toBlock: head,
+          indexerUrl: cached ? undefined : INDEXER_URL,
+          onSource: cached ? undefined : (s) => qc.setQueryData(["audit-source", vault], s),
           onProgress: (done, total) => qc.setQueryData(["audit-progress", vault], Number((done * 100n) / total)),
         });
       }
@@ -121,6 +134,10 @@ export function useAudit(vault?: Address) {
     refetchInterval: POLL,
     structuralSharing: false,
   });
+}
+
+export function useAuditSource(vault?: Address) {
+  return useQuery<"indexer" | "rpc" | undefined>({ queryKey: ["audit-source", vault], queryFn: () => undefined, enabled: false, initialData: undefined }).data;
 }
 
 export function useAuditProgress(vault?: Address) {
