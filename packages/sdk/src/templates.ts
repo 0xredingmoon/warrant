@@ -21,7 +21,7 @@ export const MANDATE_TEMPLATES: MandateTemplate[] = [
   {
     id: "research-assistant",
     name: "Research assistant",
-    description: "Buys data and API calls. Payments under 3.00 go through; larger ones wait for your approval.",
+    description: "Buys data and API calls. Payments under 3.00 tUSD8 go through; larger ones wait for your approval.",
     perTx: "5",
     period: "20",
     total: "100",
@@ -33,9 +33,9 @@ export const MANDATE_TEMPLATES: MandateTemplate[] = [
   {
     id: "micro-payments",
     name: "Pay-per-request (x402 style)",
-    description: "Tiny per-call payments to API providers. At most 0.10 per call and 5.00 a day.",
+    description: "Tiny per-call payments to API providers. At most 0.10 tUSD8 per call and 1.00 a day.",
     perTx: "0.10",
-    period: "5",
+    period: "1",
     total: "30",
     periodHours: 24,
     durationDays: 30,
@@ -45,7 +45,7 @@ export const MANDATE_TEMPLATES: MandateTemplate[] = [
   {
     id: "subscription-runner",
     name: "Subscription runner",
-    description: "Pays recurring invoices for three months. At most 25.00 a month.",
+    description: "Pays recurring invoices for three months. At most 25.00 tUSD8 a month.",
     perTx: "25",
     period: "25",
     total: "75",
@@ -57,7 +57,7 @@ export const MANDATE_TEMPLATES: MandateTemplate[] = [
   {
     id: "shopping-errand",
     name: "One-day shopping errand",
-    description: "One day, 50.00 in total. Anything from 25.00 up needs your approval.",
+    description: "One day, 50.00 tUSD8 in total. Anything from 25.00 up needs your approval.",
     perTx: "50",
     period: "50",
     total: "50",

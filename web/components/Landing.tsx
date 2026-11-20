@@ -1,4 +1,5 @@
 "use client";
+import { useWallet } from "@/lib/wallet";
 import { ConnectButton } from "./Header";
 
 const decisions: { what: string; amt: string; verdict: "ok" | "stop" | "warn"; label: string; why?: string }[] = [
@@ -11,6 +12,7 @@ const decisions: { what: string; amt: string; verdict: "ok" | "stop" | "warn"; l
 ];
 
 export function Landing() {
+  const { status } = useWallet();
   return (
     <div className="wrap">
       <section className="hero">
@@ -23,7 +25,11 @@ export function Landing() {
           </p>
           <div className="cta">
             <ConnectButton big />
-            <span className="hint">Injected wallet only. Nothing is sent until you confirm.</span>
+            {status === "connecting" ? (
+              <span className="hint waiting" role="status"><span className="spinner dark" aria-hidden /> Waiting for your wallet. Approve the connection in its window; nothing is sent.</span>
+            ) : (
+              <span className="hint">Injected wallet only. Nothing is sent until you confirm.</span>
+            )}
           </div>
         </div>
         <aside className="ticket" aria-label="Example decisions from a recorded run">

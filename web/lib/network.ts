@@ -8,7 +8,7 @@ interface Eip1193 {
 export const AEVUM_CHAIN_PARAMS = {
   chainId: `0x${CHAIN_ID.toString(16)}`,
   chainName: "QDay Aevum testnet",
-  nativeCurrency: { name: "tQDAY", symbol: "tQDAY", decimals: 18 },
+  nativeCurrency: { name: "QDay", symbol: "tQDAY", decimals: 18 },
   rpcUrls: [RPC_URL],
   blockExplorerUrls: [EXPLORER],
 } as const;

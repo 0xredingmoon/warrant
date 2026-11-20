@@ -1,6 +1,6 @@
 "use client";
 import type { Address } from "viem";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/lib/wallet";
 import { approvePending, expirePending, formatUsd, rejectPending, relayApprove, signApproval, type Mandate, type Pending } from "@warrant/sdk";
 import { CHAIN_ID, RELAYER_URL } from "@/lib/config";
 import { addrLink, short, until } from "@/lib/format";
@@ -8,7 +8,7 @@ import { useClients } from "@/lib/hooks";
 import { useTx } from "@/lib/tx";
 
 export function PendingPanel({ vault, pending, mandates, loading }: { vault: Address; pending?: Pending[]; mandates?: Mandate[]; loading: boolean }) {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { clients, wallet, ready } = useClients();
   const { run, busy } = useTx();
   const now = Math.floor(Date.now() / 1000);

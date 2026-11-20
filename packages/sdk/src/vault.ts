@@ -18,6 +18,9 @@ const INVOICE_STATE: InvoiceState[] = ["None", "Pending", "Paid"];
 
 /* ------------------------------------------------------------------ factory */
 
+/** Gas limit createVault sends. Wallets show limit x price as the most the transaction can cost; the charge is what it uses (about 3.9M). */
+export const CREATE_VAULT_GAS_LIMIT = 4_500_000n;
+
 /** Deploy the caller's vault through the factory. Returns the vault address. */
 export async function createVault(args: {
   clients: Clients;
@@ -32,7 +35,7 @@ export async function createVault(args: {
     abi: warrantFactoryAbi,
     functionName: "createVault",
     args: [args.guardian ?? "0x0000000000000000000000000000000000000000", args.salt ?? zero32],
-    gas: 4_500_000n,
+    gas: CREATE_VAULT_GAS_LIMIT,
   });
   const logs = parseEventLogs({ abi: warrantFactoryAbi, logs: res.receipt.logs, eventName: "VaultCreated" });
   const vault = logs[0]?.args.vault;

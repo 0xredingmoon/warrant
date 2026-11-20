@@ -1,22 +1,12 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { markCreation, type AuditEntry } from "@warrant/sdk";
-import { dateTime, txLink } from "@/lib/format";
-import { useAuditProgress, useAuditSource, useClient } from "@/lib/queries";
+import { txLink } from "@/lib/format";
+import { useAuditProgress, useAuditSource } from "@/lib/queries";
+import { BlockTime } from "./BlockTime";
 
 const tone = (k: AuditEntry["kind"]) =>
   k === "PaymentExecuted" || k === "Deposited" ? "pay" : k === "PaymentQueued" ? "queue" : k === "PaymentRefused" || k === "MandateRevoked" || k === "VaultFrozen" || k === "PendingRejected" || k === "PendingExpired" ? "stop" : "";
-
-function When({ block }: { block: bigint }) {
-  const client = useClient();
-  const t = useQuery({
-    queryKey: ["block-time", block.toString()],
-    queryFn: async () => Number((await client.getBlock({ blockNumber: block })).timestamp),
-    staleTime: Infinity,
-  });
-  return <time dateTime={t.data ? new Date(t.data * 1000).toISOString() : undefined}>{t.data ? dateTime(t.data) : `block ${block}`}</time>;
-}
 
 export function ActivityPanel({ vault, audit, loading, error }: { vault: Address; audit?: AuditEntry[]; loading: boolean; error: boolean }) {
   const progress = useAuditProgress(vault);
@@ -48,7 +38,7 @@ export function ActivityPanel({ vault, audit, loading, error }: { vault: Address
           <ol className="log">
             {shown.map((e) => (
               <li key={`${e.txHash}-${e.logIndex}`}>
-                <When block={e.blockNumber} />
+                <BlockTime block={e.blockNumber} />
                 <span>
                   <i className={`kind ${tone(e.kind)}`} aria-hidden />
                   {e.kind === "PaymentRefused" && <strong className="refused-tag">Refused on-chain</strong>}

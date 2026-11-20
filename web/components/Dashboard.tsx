@@ -1,24 +1,25 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAccount } from "wagmi";
 import type { Address } from "viem";
 import { createVault, randomBytes32 } from "@warrant/sdk";
-import { isAddress, getAddress, zeroAddress } from "viem";
+import { formatEther, isAddress, getAddress, zeroAddress } from "viem";
 import { CHAIN_ID, FACTORY } from "@/lib/config";
 import { ensureAevum } from "@/lib/network";
 import { addrLink, short } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
-import { useAudit, useVault, useVaults } from "@/lib/queries";
+import { useAudit, useCreateVaultFee, useGasBalance, useVault, useVaults } from "@/lib/queries";
+import { useWallet } from "@/lib/wallet";
 import { useTx } from "@/lib/tx";
 import { ActivityPanel } from "./ActivityPanel";
 import { BalancePanel } from "./BalancePanel";
 import { MandatePanel } from "./MandatePanel";
+import { NewMandateSheet } from "./NewMandateSheet";
 import { PendingPanel } from "./PendingPanel";
 import { ReputationPanel } from "./ReputationPanel";
 import { SafetyPanel } from "./SafetyPanel";
 
 function NetworkBanner() {
-  const { wrongNetwork } = useClients();
+  const { wrongNetwork, refreshChain } = useWallet();
   const [state, setState] = useState<{ pending: boolean; message?: string }>({ pending: false });
   if (!wrongNetwork) return null;
   return (
@@ -30,6 +31,7 @@ function NetworkBanner() {
         onClick={async () => {
           setState({ pending: true });
           const r = await ensureAevum();
+          if (r.ok) await refreshChain();
           setState({ pending: false, message: r.ok ? undefined : r.message });
         }}
       >
@@ -40,9 +42,18 @@ function NetworkBanner() {
   );
 }
 
+const fmtFee = (v: bigint) => {
+  const n = Number(formatEther(v));
+  return n >= 0.001 ? n.toFixed(4) : n.toPrecision(2);
+};
+
 function CreateVault({ onCreated, first }: { onCreated: (v: Address) => void; first: boolean }) {
   const { clients, ready } = useClients();
-  const { run } = useTx();
+  const { address, wrongNetwork } = useWallet();
+  const { run, busy } = useTx();
+  const fee = useCreateVaultFee(address);
+  const gas = useGasBalance(address);
+  const short_ = fee.data !== undefined && gas.data !== undefined && gas.data < fee.data.expected;
   const [guardian, setGuardian] = useState("");
   const gOk = guardian === "" || isAddress(guardian);
   return (
@@ -52,8 +63,11 @@ function CreateVault({ onCreated, first }: { onCreated: (v: Address) => void; fi
       </div>
       <div className="panel-b stack" style={{ gap: 18 }}>
         <p style={{ color: "var(--ink-2)" }}>
-          A vault is a contract that only you can withdraw from. Agents get mandates on it; they never hold the funds. Creating one costs about 0.004 tQDAY in gas.
+          A vault is a contract that only you can withdraw from. Agents get mandates on it; they never hold the funds. {fee.data !== undefined
+            ? `Creating one costs about ${fmtFee(fee.data.expected)} tQDAY in gas. Your wallet may show up to ${fmtFee(fee.data.most)}; that is the most it allows, and you pay only what is used.`
+            : "Creating one costs roughly 0.005 tQDAY in gas. Your wallet may show a little more as its upper limit; you pay only what is used."}
         </p>
+        {short_ && <p className="note" role="status">Your wallet holds {fmtFee(gas.data!)} tQDAY, which is not enough for that. Get some from the faucet first.</p>}
         <label className="field">
           <span>Guardian (optional)</span>
           <input className={`input mono ${gOk ? "" : "bad"}`} placeholder="0x… a second key that can freeze or revoke, never move funds" value={guardian} onChange={(e) => setGuardian(e.target.value.trim())} spellCheck={false} />
@@ -62,7 +76,7 @@ function CreateVault({ onCreated, first }: { onCreated: (v: Address) => void; fi
         <div className="row">
           <button
             className="btn"
-            disabled={!ready || !gOk}
+            disabled={!ready || !gOk || busy}
             onClick={async () => {
               const res = await run("Create vault", () =>
                 createVault({ clients: clients!, factory: FACTORY, guardian: guardian ? getAddress(guardian) : zeroAddress, salt: randomBytes32() }),
@@ -72,7 +86,7 @@ function CreateVault({ onCreated, first }: { onCreated: (v: Address) => void; fi
           >
             Create vault
           </button>
-          {!ready && <span className="hint">Connect a wallet on Aevum first.</span>}
+          {!ready && <span className="hint">{wrongNetwork ? "Switch your wallet to Aevum first." : "Connect a wallet first."}</span>}
         </div>
       </div>
     </section>
@@ -80,7 +94,7 @@ function CreateVault({ onCreated, first }: { onCreated: (v: Address) => void; fi
 }
 
 export function Dashboard() {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const vaults = useVaults(address);
   const [sel, setSel] = useState<Address>();
   const [adding, setAdding] = useState(false);
@@ -138,9 +152,11 @@ function VaultView({ vault, vaults, onSelect, onAdd }: { vault: Address; vaults:
   const data = useVault(vault);
   const audit = useAudit(vault);
   const [copied, setCopied] = useState(false);
+  const [sheet, setSheet] = useState<null | { register: boolean }>(null);
   const s = data.data?.state;
   return (
     <>
+      {sheet && <NewMandateSheet vault={vault} registerAgent={sheet.register} onClose={() => setSheet(null)} />}
       <div className="head">
         <div>
           <h1>Vault</h1>
@@ -186,14 +202,14 @@ function VaultView({ vault, vaults, onSelect, onAdd }: { vault: Address; vaults:
       ) : (
         <div className="grid">
           <div className="stack">
-            <MandatePanel vault={vault} data={data.data} audit={audit.data} loading={data.isLoading} />
+            <MandatePanel vault={vault} data={data.data} audit={audit.data} auditLoading={audit.isFetching} loading={data.isLoading} onNew={() => setSheet({ register: false })} />
             <ActivityPanel vault={vault} audit={audit.data} loading={audit.isLoading} error={audit.isError} />
           </div>
           <div className="stack">
             <BalancePanel vault={vault} state={s} />
             <PendingPanel vault={vault} pending={data.data?.pending} mandates={data.data?.mandates} loading={data.isLoading} />
             <SafetyPanel vault={vault} state={s} />
-            <ReputationPanel mandates={data.data?.mandates} />
+            <ReputationPanel mandates={data.data?.mandates} onRegister={() => setSheet({ register: true })} />
           </div>
         </div>
       )}

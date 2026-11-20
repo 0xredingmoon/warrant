@@ -29,7 +29,7 @@ function Agent({ id, wallet }: { id: bigint; wallet: string }) {
   );
 }
 
-export function ReputationPanel({ mandates }: { mandates?: Mandate[] }) {
+export function ReputationPanel({ mandates, onRegister }: { mandates?: Mandate[]; onRegister: () => void }) {
   const ids = new Map<string, { id: bigint; wallet: string }>();
   for (const m of mandates ?? []) if (m.params.agentId > 0n) ids.set(m.params.agentId.toString(), { id: m.params.agentId, wallet: m.params.agent });
   const unregistered = (mandates ?? []).filter((m) => m.params.agentId === 0n).length;
@@ -39,17 +39,23 @@ export function ReputationPanel({ mandates }: { mandates?: Mandate[] }) {
         <h2 id="rep-h">Agent reputation</h2>
         <a className="hint" href={addrLink(REGISTRY)} target="_blank" rel="noreferrer">Registry ↗</a>
       </div>
-      {ids.size === 0 ? (
-        <div className="empty" style={{ padding: 18 }}>
+      {[...ids.values()].map((a) => <Agent key={a.id.toString()} {...a} />)}
+      {mandates && unregistered > 0 && (
+        <div className="empty" style={{ padding: 18, display: "grid", gap: 10, justifyItems: "start" }}>
           <p>
-            {unregistered > 0
-              ? `${unregistered} mandate${unregistered > 1 ? "s use" : " uses"} an unregistered agent address. Generate the key in New mandate to register an identity, and merchants can rate it against paid receipts.`
-              : "Registered agents appear here with their verified payment count, volume and merchant ratings."}
+            {unregistered === 1 ? "One mandate pays an agent" : `${unregistered} mandates pay agents`} with no entry in the registry, so there is no payment record or rating for merchants to check. A registered agent builds one with every paid invoice.
           </p>
+          <p className="hint">An agent can't be changed on an existing mandate. Registering means issuing a new mandate for a new agent key.</p>
+          <button className="btn quiet sm" onClick={onRegister}>Register agent</button>
         </div>
-      ) : (
-        [...ids.values()].map((a) => <Agent key={a.id.toString()} {...a} />)
       )}
+      {mandates && ids.size === 0 && unregistered === 0 && (
+        <div className="empty" style={{ padding: 18, display: "grid", gap: 10, justifyItems: "start" }}>
+          <p>No agent yet. Issue a mandate and register its agent, and its payment record and merchant ratings appear here.</p>
+          <button className="btn quiet sm" onClick={onRegister}>Register agent</button>
+        </div>
+      )}
+      {!mandates && <div className="skel" style={{ margin: 18 }} />}
     </section>
   );
 }

@@ -37,12 +37,14 @@ page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
 
 await page.evaluateOnNewDocument((account, rpcUrl) => {
   const listeners = {};
+  let granted = false; // like MetaMask: no accounts until the site is permitted
   window.ethereum = {
     isMock: true,
     on: (e, f) => ((listeners[e] ??= []).push(f)),
     removeListener: (e, f) => (listeners[e] = (listeners[e] ?? []).filter((x) => x !== f)),
     async request({ method, params }) {
-      if (method === "eth_requestAccounts" || method === "eth_accounts") return [account];
+      if (method === "eth_requestAccounts") { granted = true; return [account]; }
+      if (method === "eth_accounts") return granted ? [account] : [];
       if (method === "eth_chainId") return "0xabe5";
       if (method === "wallet_switchEthereumChain") return null;
       const r = await (await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params: params ?? [] }) })).json();
@@ -59,6 +61,16 @@ const clickText = async (sel, text, opts = {}) => {
 };
 const waitText = (text, timeout = 45000) => page.waitForFunction((t) => document.body.textContent.includes(t), { timeout }, text);
 const step = (s) => console.log(`\n${s}`);
+const check = (ok, what) => { console.log(ok ? "   ok" : "   FAIL", what); if (!ok) fail(what); };
+const bodyText = () => page.evaluate(() => document.body.innerText);
+// replace the value of a labelled field in the New mandate sheet
+const setField = async (label, value) => {
+  const h = await page.evaluateHandle((l) => [...document.querySelectorAll(".sheet label.field")].find((el) => el.querySelector("span")?.textContent.startsWith(l))?.querySelector("input"), label);
+  const el = h.asElement();
+  if (!el) throw new Error(`no field "${label}"`);
+  await el.click({ clickCount: 3 });
+  await el.type(value);
+};
 
 try {
   step("landing");
@@ -88,21 +100,38 @@ try {
   await clickText("button", "Deposit");
   await page.waitForFunction(() => document.querySelector(".balance .amt")?.textContent?.startsWith("5.00"), { timeout: 60000 });
   log("balance shows 5.00");
+  await page.waitForFunction(() => !document.querySelector('.panel input[inputmode="decimal"]'), { timeout: 3000 }).then(() => check(true, "deposit form closed once the deposit landed"), () => check(false, "deposit form closed once the deposit landed"));
+  check(/In your wallet: 15\.00 tUSD8/.test(await bodyText()), "wallet balance shows 15.00 right away");
+  await page.waitForFunction(() => !document.querySelector(".toast-pending"), { timeout: 5000 });
+  await page.waitForFunction(() => !document.querySelector(".toast-ok"), { timeout: 9000 }).then(() => check(true, "success toast dismisses itself"), () => check(false, "success toast dismisses itself"));
 
   step("new mandate with a generated agent key");
   await clickText("button", "New mandate");
   await waitText("Start from a template");
   await shot("04-new-mandate-sheet");
+  check((await bodyText()).includes("5.00 tUSD8 per payment · 20.00 per day · 100.00 over 7 days"), "template chips carry units and the lifetime window");
+  check(await page.evaluate(() => { const s = document.querySelector(".sheet"); return s.scrollWidth <= s.clientWidth; }), "no horizontal scrollbar in the drawer");
   await clickText("button", "Generate a new agent key");
+  check(await page.evaluate(() => document.querySelector(".key-box input[type=checkbox]")?.checked === false), "registry registration is off by default");
+  await page.evaluate(() => document.querySelector(".key-box input[type=checkbox]").click());
   await clickText("button", "Reveal");
   const key = await page.evaluate(() => document.querySelector(".key-box code")?.textContent);
   if (!/^0x[0-9a-f]{64}$/.test(key ?? "")) throw new Error("agent key not shown");
   const merchant = getAddress("0x" + "ab".repeat(20));
   await page.type("textarea", merchant);
+  // lowering the per-payment limit below the approval threshold pulls the threshold down with a visible note
+  await setField("Per payment", "2");
+  await page.evaluate(() => document.activeElement.blur());
+  await page.waitForFunction(() => document.querySelector(".sheet .note")?.textContent.includes("Approval threshold lowered to 2.00"), { timeout: 3000 }).then(() => check(true, "threshold follows a lowered per-payment limit, with a note"), () => check(false, "threshold follows a lowered per-payment limit, with a note"));
+  await setField("Per payment", "5");
+  await setField("Ask me from", "3");
+  await page.evaluate(() => document.activeElement.blur());
   await shot("05-new-mandate-filled");
   await clickText("button", "Issue mandate");
   await waitText("Mandate #1", 90000);
   await page.waitForFunction(() => !document.querySelector(".sheet"), { timeout: 10000 });
+  check(!(await bodyText()).includes("None listed"), "new mandate never shows a false empty merchant list");
+  await page.waitForFunction((m) => document.body.innerText.includes(m.slice(0, 6)) && document.querySelector(".tags"), { timeout: 30000 }, merchant);
   await shot("06-mandate-active");
 
   step("agent pays through the relayer, UI sees it");
@@ -140,6 +169,8 @@ try {
   log("frozen vault refused:", blocked.check.message);
   await shot("09-frozen");
   await clickText("button", "Unfreeze vault");
+  check((await bodyText()).includes("Let payments resume on this vault?"), "unfreeze asks for confirmation like freeze does");
+  await clickText("button", "Unfreeze");
   await page.waitForFunction(() => !document.body.textContent.includes("Every payment is refused"), { timeout: 45000 });
 
   step("revoke");
@@ -150,10 +181,33 @@ try {
   if (after.status !== "rejected") throw new Error("payment went through a revoked mandate");
   log("revoked mandate refused:", after.check.message);
   await shot("10-revoked");
+  const card = await page.evaluate(() => { const c = document.querySelector(".mandate"); return { text: c?.innerText ?? "", muted: !!c?.querySelector(".meters.muted") }; });
+  check(/Revoked\n[^\n]*(\d:\d\d|block \d)/.test(card.text) && !/Expires/.test(card.text), "revoked mandate shows when it was revoked, not an expiry");
+  check(card.muted, "revoked mandate's bars are muted");
+
+  step("second mandate, registry left off, then Register agent");
+  await clickText("button", "New mandate");
+  await waitText("Start from a template");
+  await clickText("button", "Generate a new agent key");
+  check(await page.evaluate(() => document.querySelector(".key-box input[type=checkbox]")?.checked === false), "registration still off by default");
+  await page.type("textarea", merchant);
+  await clickText("button", "Issue mandate");
+  await waitText("Mandate #2", 90000);
+  await page.waitForFunction(() => !document.querySelector(".sheet"), { timeout: 10000 });
+  await waitText("Register agent", 30000);
+  await clickText("button", "Register agent");
+  await page.waitForSelector(".key-box");
+  check(await page.evaluate(() => document.querySelector(".key-box input[type=checkbox]")?.checked === true), "Register agent opens the sheet with a new key and registration on");
+  await clickText("button", "Close");
+  await page.waitForFunction(() => !document.querySelector(".sheet"), { timeout: 5000 });
 
   step("withdraw");
   await clickText("button", "Withdraw");
+  const fullLabel = await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.startsWith("Use the full"))?.textContent);
+  check(/Use the full \d+\.\d{2}/.test(fullLabel ?? ""), `"${fullLabel}" is two-decimal`);
   await clickText("button", "Use the full");
+  const filled = await page.evaluate(() => document.querySelector('.panel input[inputmode="decimal"]').value);
+  check(filled === (fullLabel ?? "").replace("Use the full ", "").trim(), `the field is filled with the same figure (${filled})`);
   await clickText("button", "Withdraw");
   await page.waitForFunction(() => document.querySelector(".balance .amt")?.textContent?.startsWith("0.00"), { timeout: 60000 });
   await shot("11-final");

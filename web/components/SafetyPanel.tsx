@@ -1,18 +1,35 @@
 "use client";
 import { useState } from "react";
 import { getAddress, isAddress, type Address } from "viem";
-import { useAccount } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { freezeAll, setGuardian, unfreeze, type VaultState } from "@warrant/sdk";
 import { short } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
 import { useTx } from "@/lib/tx";
+import { useWallet } from "@/lib/wallet";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 export function SafetyPanel({ vault, state }: { vault: Address; state?: VaultState }) {
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { clients, ready } = useClients();
   const { run, busy } = useTx();
+  const qc = useQueryClient();
+  const [working, setWorking] = useState<"" | "freeze" | "unfreeze">("");
+  const setFrozen = (frozen: boolean) => qc.setQueryData(["vault", vault], (d: any) => d && { ...d, state: { ...d.state, frozen } });
+  const doFreeze = async () => {
+    setWorking("freeze");
+    const r = await run("Freeze vault", () => freezeAll(clients!, vault), { onSuccess: () => setFrozen(true) });
+    setWorking("");
+    if (r) setConfirm(false);
+  };
+  const doUnfreeze = async () => {
+    setWorking("unfreeze");
+    const r = await run("Unfreeze vault", () => unfreeze(clients!, vault), { onSuccess: () => setFrozen(false) });
+    setWorking("");
+    if (r) setConfirm(false);
+  };
+  const Spin = () => <span className="spinner" aria-hidden />;
   const [editing, setEditing] = useState(false);
   const [g, setG] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -32,19 +49,28 @@ export function SafetyPanel({ vault, state }: { vault: Address; state?: VaultSta
             ? "Every payment is refused, including queued ones, until you unfreeze."
             : "Freezing stops every mandate on this vault at once. Withdrawals stay available to you."}
         </p>
-        {state.frozen ? (
-          <button className="btn" disabled={!ready || !isOwner || busy} onClick={() => run("Unfreeze vault", () => unfreeze(clients!, vault))}>Unfreeze vault</button>
-        ) : confirm ? (
+        {confirm ? (
           <div className="confirm">
-            <span>Freeze all payments on this vault now?</span>
+            <span>{state.frozen ? "Let payments resume on this vault? Mandates that have not expired or been revoked work again straight away." : "Freeze all payments on this vault now?"}</span>
             <div className="row">
-              <button className="btn stop" disabled={busy} onClick={async () => { const r = await run("Freeze vault", () => freezeAll(clients!, vault)); if (r) setConfirm(false); }}>Freeze</button>
-              <button className="btn quiet" onClick={() => setConfirm(false)}>Cancel</button>
+              {state.frozen ? (
+                <button className={`btn ${working ? "is-busy" : ""}`} disabled={busy || !ready || !isOwner} onClick={doUnfreeze}>
+                  {working === "unfreeze" ? <><Spin /> Unfreezing…</> : "Unfreeze"}
+                </button>
+              ) : (
+                <button className={`btn stop ${working ? "is-busy" : ""}`} disabled={busy} onClick={doFreeze}>
+                  {working === "freeze" ? <><Spin /> Freezing…</> : "Freeze"}
+                </button>
+              )}
+              <button className="btn quiet" disabled={!!working} onClick={() => setConfirm(false)}>Cancel</button>
             </div>
           </div>
+        ) : state.frozen ? (
+          <button className="btn" disabled={!ready || !isOwner} onClick={() => setConfirm(true)}>Unfreeze vault</button>
         ) : (
           <button className="btn stop-quiet" disabled={!ready || !(isOwner || isGuardian)} onClick={() => setConfirm(true)}>Freeze all payments</button>
         )}
+        {state.frozen && !isOwner && <p className="hint">Only the owner can unfreeze.</p>}
 
         <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
           <div className="label">Guardian</div>

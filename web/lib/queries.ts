@@ -1,7 +1,7 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePublicClient } from "wagmi";
 import type { Address, PublicClient } from "viem";
+import { publicClient } from "./chain";
 import {
   getAgentReputation,
   getAuditLog,
@@ -9,20 +9,32 @@ import {
   getVaultCreatedBlock,
   getVaultState,
   getVaultsOf,
+  randomBytes32,
+  CREATE_VAULT_GAS_LIMIT,
+  warrantFactoryAbi,
   getWindow,
   listMandates,
   listPending,
   type AuditEntry,
   type WindowState,
 } from "@warrant/sdk";
+import { zeroAddress } from "viem";
 import { DEPLOY_BLOCK, FACTORY, INDEXER_URL, REGISTRY, TOKEN } from "./config";
 
 const POLL = 4000;
 
-export function useClient() {
-  const c = usePublicClient();
-  if (!c) throw new Error("no public client");
-  return c as PublicClient;
+export function useClient(): PublicClient {
+  return publicClient;
+}
+
+/** tQDAY balance on Aevum (gas), for the connected address. */
+export function useGasBalance(owner?: Address) {
+  return useQuery({
+    queryKey: ["gas", owner],
+    enabled: !!owner,
+    queryFn: () => publicClient.getBalance({ address: owner! }),
+    refetchInterval: 10_000,
+  });
 }
 
 export function useVaults(owner?: Address) {
@@ -151,5 +163,25 @@ export function useReputation(agentId?: bigint) {
     enabled: agentId !== undefined && agentId > 0n,
     queryFn: () => getAgentReputation(client, REGISTRY, agentId!),
     refetchInterval: POLL * 3,
+  });
+}
+
+/**
+ * What creating a vault costs in gas right now: the gas the call needs times the gas price the SDK sends with it
+ * (the node's price plus 20%), and the most a wallet will show for it (gas limit times that price).
+ */
+export function useCreateVaultFee(account?: Address) {
+  return useQuery({
+    queryKey: ["create-vault-fee", account],
+    enabled: !!account,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [gas, price] = await Promise.all([
+        publicClient.estimateContractGas({ address: FACTORY, abi: warrantFactoryAbi, functionName: "createVault", args: [zeroAddress, randomBytes32()], account: account! }),
+        publicClient.getGasPrice(),
+      ]);
+      const sent = (price * 12n) / 10n;
+      return { expected: gas * sent, most: CREATE_VAULT_GAS_LIMIT * sent };
+    },
   });
 }

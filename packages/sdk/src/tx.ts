@@ -55,11 +55,22 @@ export function isUserRejection(err: unknown): boolean {
   return false;
 }
 
+/** True when the wallet says this page has no access to the account (EIP-1193 code 4100, MetaMask's "not been authorized"). */
+export function isUnauthorized(err: unknown): boolean {
+  let e: any = err;
+  for (let i = 0; e && i < 6; i++) {
+    if (e.code === 4100 || /has not been authorized|not authorized by the user/i.test(String(e.shortMessage ?? e.message ?? ""))) return true;
+    e = e.cause;
+  }
+  return false;
+}
+
 /** Friendly message for any error coming out of a vault/factory/registry call. */
 export function explainError(err: unknown): string {
   const rejected = decodeRejection(err);
   if (rejected) return rejected.message;
   if (isUserRejection(err)) return "You rejected the request in your wallet. Nothing was sent.";
+  if (isUnauthorized(err)) return "Your wallet has not given this page access to the account. Connect the wallet again and approve it, then retry.";
   if (err instanceof BaseError) {
     const reverted = err.walk((e) => e instanceof ContractFunctionRevertedError);
     if (reverted instanceof ContractFunctionRevertedError && reverted.data?.errorName) {

@@ -17,6 +17,9 @@ import {
   toCheckResult,
   vaultDomain,
   decodeAuditLogs,
+  explainError,
+  isUnauthorized,
+  isUserRejection,
 } from "../src";
 
 describe("reasons", () => {
@@ -82,6 +85,29 @@ describe("templates", () => {
       expect(p.expiry - now).toBeLessThanOrEqual(365 * 86400);
       expect(p.validAfter).toBeLessThan(now);
     }
+  });
+
+  it("have lifetime totals that fit the validity period and say tUSD8 where they name amounts", () => {
+    for (const t of MANDATE_TEMPLATES) {
+      const periods = Math.ceil((t.durationDays * 24) / t.periodHours);
+      expect(Number(t.total)).toBeLessThanOrEqual(Number(t.period) * periods);
+      expect(Number(t.total)).toBeGreaterThanOrEqual(Number(t.period));
+      expect(t.description).toMatch(/tUSD8/);
+    }
+  });
+});
+
+describe("wallet errors", () => {
+  it("tells a rejection from an access problem and explains both plainly", () => {
+    const rejected = Object.assign(new Error("User rejected the request."), { code: 4001 });
+    const unauthorized = Object.assign(new Error("The requested method and/or account has not been authorized by the user."), { code: 4100 });
+    expect(isUserRejection(rejected)).toBe(true);
+    expect(isUnauthorized(rejected)).toBe(false);
+    expect(isUnauthorized(unauthorized)).toBe(true);
+    expect(isUnauthorized({ cause: unauthorized })).toBe(true);
+    expect(explainError(unauthorized)).not.toMatch(/requested method/i);
+    expect(explainError(unauthorized)).toMatch(/Connect the wallet again/);
+    expect(explainError(rejected)).toBe("You rejected the request in your wallet. Nothing was sent.");
   });
 });
 

@@ -31,14 +31,16 @@ const toStr = (t: MandateTemplate) => ({
 const num = (s: string) => (s === "" || s === "." ? 0n : parseUsd(s));
 const int = (s: string) => (/^\d+(\.\d+)?$/.test(s) ? Number(s) : NaN);
 
-export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: () => void }) {
+export function NewMandateSheet({ vault, onClose, registerAgent: presetRegister = false }: { vault: Address; onClose: () => void; registerAgent?: boolean }) {
   const { clients, ready } = useClients();
   const { run, busy } = useTx();
   const [tpl, setTpl] = useState<string>(MANDATE_TEMPLATES[0]!.id);
   const [f, setF] = useState(toStr(MANDATE_TEMPLATES[0]!));
-  const [agent, setAgent] = useState("");
-  const [genKey, setGenKey] = useState<Hex>();
-  const [register, setRegister] = useState(true);
+  // opened from "Register agent": start with a fresh key and registration switched on
+  const [genKey, setGenKey] = useState<Hex | undefined>(() => (presetRegister ? generatePrivateKey() : undefined));
+  const [agent, setAgent] = useState(() => (genKey ? privateKeyToAccount(genKey).address : ""));
+  const [register, setRegister] = useState(presetRegister);
+  const [note, setNote] = useState("");
   const [merchants, setMerchants] = useState("");
   const [shown, setShown] = useState(false);
   const first = useRef<HTMLButtonElement>(null);
@@ -56,6 +58,7 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setTpl("custom");
+    setNote("");
     setF({ ...f, [k]: k.includes("Hours") || k === "durationDays" ? e.target.value.replace(/[^\d.]/g, "") : cleanAmount(e.target.value) });
   };
 
@@ -72,7 +75,7 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
     if (perTx === 0n) e.perTx = "Must be above zero.";
     else if (perTx > period) e.period = "The daily/period limit can't be below the per-payment limit.";
     if (period > total) e.total = "The lifetime limit can't be below the period limit.";
-    if (thr > perTx) e.threshold = "Approval threshold can't be above the per-payment limit. Use 0 for none.";
+    if (thr > perTx && perTx > 0n) e.threshold = `Can't be above the per-payment limit of ${formatUsd(perTx)}. A payment never gets that large, so nothing would ever wait for you.`;
     if (!(int(f.periodHours) >= 1)) e.periodHours = "At least 1 hour.";
     if (!(int(f.durationDays) > 0) || int(f.durationDays) > 365) e.durationDays = "Between 1 and 365 days.";
     if (thr > 0n && !(int(f.windowHours) >= 1)) e.windowHours = "Give yourself at least 1 hour to decide.";
@@ -80,7 +83,17 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
   }, [agent, merchantList, f]);
   const valid = Object.keys(errors).length === 0;
 
+  // leaving the per-payment field with a lower figure than the approval threshold: pull the threshold down to match, and say so
+  const settlePerTx = () => {
+    const perTx = num(f.perTx), thr = num(f.threshold);
+    if (perTx > 0n && thr > perTx) {
+      setF({ ...f, threshold: f.perTx });
+      setNote(`Approval threshold lowered to ${formatUsd(perTx)} so it fits under the per-payment limit.`);
+    }
+  };
+
   function pick(t: MandateTemplate) {
+    setNote("");
     setTpl(t.id);
     setF(toStr(t));
   }
@@ -125,7 +138,7 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
                 <strong>{t.name}</strong>
                 <span>{t.description}</span>
                 <span className="num">
-                  {t.perTx} per payment · {t.period} per {t.periodHours >= 24 && t.periodHours % 24 === 0 ? (t.periodHours === 24 ? "day" : `${t.periodHours / 24} days`) : `${t.periodHours} h`} · {t.total} total
+                  {formatUsd(parseUsd(t.perTx))} tUSD8 per payment · {formatUsd(parseUsd(t.period))} per {t.periodHours >= 24 && t.periodHours % 24 === 0 ? (t.periodHours === 24 ? "day" : `${t.periodHours / 24} days`) : `${t.periodHours} h`} · {formatUsd(parseUsd(t.total))} over {t.durationDays === 1 ? "1 day" : `${t.durationDays} days`}
                 </span>
               </button>
             ))}
@@ -149,7 +162,7 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
                 </div>
                 <label className="check">
                   <input type="checkbox" checked={register} onChange={(e) => setRegister(e.target.checked)} />
-                  <span>Register this agent in the AgentRegistry first (two extra transactions). Merchants can then rate it against paid receipts.</span>
+                  <span>Also register this agent in the AgentRegistry. That adds 2 transactions before the mandate (register, then link its wallet); merchants can then rate it against paid receipts.</span>
                 </label>
               </div>
             ) : (
@@ -173,12 +186,20 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
             {merchants && errors.merchants ? <span className="err">{errors.merchants}</span> : <span className="hint">Anyone not on this list is refused, whatever the agent is told to do.</span>}
           </label>
 
-          <Amount label="Per payment, at most" v={f.perTx} onChange={set("perTx")} err={errors.perTx} />
+          <Amount label="Per payment, at most" v={f.perTx} onChange={set("perTx")} onBlur={settlePerTx} err={errors.perTx} />
           <Amount label="Per window, at most" v={f.period} onChange={set("period")} err={errors.period} />
           <Amount label="Lifetime total, at most" v={f.total} onChange={set("total")} err={errors.total} />
           <Plain label="Window length" suffix="hours" v={f.periodHours} onChange={set("periodHours")} err={errors.periodHours} />
           <Plain label="Valid for" suffix="days" v={f.durationDays} onChange={set("durationDays")} err={errors.durationDays} />
-          <Amount label="Ask me from this amount (0 = never)" v={f.threshold} onChange={set("threshold")} err={errors.threshold} />
+          <div className="wide">
+            <Amount label="Ask me from this amount (0 = never)" v={f.threshold} onChange={set("threshold")} err={errors.threshold} />
+            {errors.threshold && num(f.perTx) > 0n && (
+              <button className="link hint" style={{ marginTop: 4 }} onClick={() => { setNote(""); setF({ ...f, threshold: f.perTx }); }}>
+                Set it to {formatUsd(num(f.perTx))}
+              </button>
+            )}
+            {note && !errors.threshold && <p className="note" role="status" style={{ marginTop: 6 }}>{note}</p>}
+          </div>
           {num(f.threshold) > 0n && <Plain label="Time I have to decide" suffix="hours" v={f.windowHours} onChange={set("windowHours")} err={errors.windowHours} />}
         </div>
 
@@ -187,7 +208,7 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
             {busy ? "Working…" : "Issue mandate"}
           </button>
           <span className="hint">
-            {valid ? `Up to ${formatUsd(num(f.total))} tUSD8 can leave the vault under this mandate.` : "Fix the highlighted fields to continue."}
+            {valid ? `Up to ${formatUsd(num(f.total))} tUSD8 can leave the vault under this mandate.` : `Can't issue yet: ${Object.values(errors)[0]}`}
           </span>
         </div>
       </aside>
@@ -195,15 +216,15 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
   );
 }
 
-function Amount({ label, v, onChange, err }: { label: string; v: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; err?: string }) {
-  return <Plain label={label} suffix="tUSD8" v={v} onChange={onChange} err={err} />;
+function Amount({ label, v, onChange, onBlur, err }: { label: string; v: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur?: () => void; err?: string }) {
+  return <Plain label={label} suffix="tUSD8" v={v} onChange={onChange} onBlur={onBlur} err={err} />;
 }
-function Plain({ label, suffix, v, onChange, err }: { label: string; suffix: string; v: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; err?: string }) {
+function Plain({ label, suffix, v, onChange, onBlur, err }: { label: string; suffix: string; v: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur?: () => void; err?: string }) {
   return (
     <label className="field">
       <span>{label}</span>
       <div className="affix" style={err ? { borderColor: "var(--stop)" } : undefined}>
-        <input inputMode="decimal" value={v} onChange={onChange} aria-invalid={!!err} />
+        <input inputMode="decimal" value={v} onChange={onChange} onBlur={onBlur} aria-invalid={!!err} />
         <em>{suffix}</em>
       </div>
       {err && <span className="err">{err}</span>}

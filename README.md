@@ -65,7 +65,7 @@ relayer rate-limits refusals per vault and per day. A plain `pay()` call still r
 | `packages/merchant` | `@warrant/merchant`: HTTP 402 paywall (native Warrant flow and x402 v1/v2) with on-chain payment verification (Express middleware) |
 | `packages/mcp` | `@warrant/mcp`: MCP server with `check_mandate` and `pay_with_mandate` |
 | `packages/demo` | The scenario above, runnable on a fork or on Aevum; `src/serve.ts` runs the demo merchant and notes site as long-lived services; `src/video.ts` records the demo video |
-| `web/` | Next.js owner dashboard (wagmi, viem, injected wallet); builds to static files |
+| `web/` | Next.js owner dashboard (viem, injected wallet); builds to static files |
 | `Dockerfile`, `docker-compose.yml`, `render.yaml`, `fly.toml`, `railway.json` | Container and hosting configs, see [Docker and hosting](#docker-and-hosting) |
 | `docs/` | [`DESIGN.md`](docs/DESIGN.md), [`BUSINESS.md`](docs/BUSINESS.md), [`gas-report.md`](docs/gas-report.md), [`live-run.md`](docs/live-run.md) |
 

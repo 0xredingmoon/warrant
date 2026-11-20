@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { deposit, formatUsd, parseUsd, relayDeposit, signReceiveWithAuthorization, withdraw, type VaultState } from "@warrant/sdk";
 import { CHAIN_ID, RELAYER_URL, TOKEN } from "@/lib/config";
@@ -7,10 +8,11 @@ import { cleanAmount } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
 import { useWalletTokenBalance } from "@/lib/queries";
 import { useTx } from "@/lib/tx";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/lib/wallet";
 
 export function BalancePanel({ vault, state }: { vault: Address; state?: VaultState }) {
-  const { address } = useAccount();
+  const { address } = useWallet();
+  const qc = useQueryClient();
   const { clients, wallet, ready } = useClients();
   const { run, busy } = useTx();
   const mine = useWalletTokenBalance(address);
@@ -24,13 +26,22 @@ export function BalancePanel({ vault, state }: { vault: Address; state?: VaultSt
   const isOwner = !state || !address || state.owner.toLowerCase() === address.toLowerCase();
   const canSubmit = ready && value > 0n && !over && !busy && isOwner;
 
+  /** show the new balances now; the refetch after the receipt confirms them */
+  const apply = (dir: "in" | "out") => {
+    qc.setQueryData(["vault", vault], (d: any) => d && { ...d, state: { ...d.state, balance: dir === "in" ? d.state.balance + value : d.state.balance - value } });
+    qc.setQueryData(["tusd8", address], (b: bigint | undefined) => (b === undefined ? b : dir === "in" ? b - value : b + value));
+  };
+  const finish = (dir: "in" | "out") => () => {
+    apply(dir);
+    done();
+  };
+
   async function submit() {
     if (!clients || !wallet || !address) return;
     if (mode === "withdraw") {
-      const r = await run(`Withdraw ${formatUsd(value)} tUSD8`, () => withdraw(clients, vault, address, value));
-      if (r) done();
+      await run(`Withdraw ${formatUsd(value)} tUSD8`, () => withdraw(clients, vault, address, value), { onSuccess: finish("out") });
     } else if (gasless && RELAYER_URL) {
-      const r = await run(`Deposit ${formatUsd(value)} tUSD8 (no gas)`, async () => {
+      await run(`Deposit ${formatUsd(value)} tUSD8 (no gas)`, async () => {
         const auth = await signReceiveWithAuthorization({
           signer: wallet as any,
           chainId: CHAIN_ID,
@@ -43,11 +54,9 @@ export function BalancePanel({ vault, state }: { vault: Address; state?: VaultSt
         const res = await relayDeposit({ relayerUrl: RELAYER_URL!, vault, from: address, amount: value, validAfter: auth.validAfter, validBefore: auth.validBefore, nonce: auth.nonce, signature: auth.signature });
         if (res.status !== "executed") throw new Error(res.error ?? "The relayer could not submit the deposit.");
         return { hash: res.txHash };
-      });
-      if (r) done();
+      }, { onSuccess: finish("in") });
     } else {
-      const r = await run(`Deposit ${formatUsd(value)} tUSD8`, () => deposit({ clients, vault, token: TOKEN, amount: value }));
-      if (r) done();
+      await run(`Deposit ${formatUsd(value)} tUSD8`, () => deposit({ clients, vault, token: TOKEN, amount: value }), { onSuccess: finish("in") });
     }
   }
   const done = () => {
@@ -93,7 +102,7 @@ export function BalancePanel({ vault, state }: { vault: Address; state?: VaultSt
               {over && <span className="err">{mode === "deposit" ? "More than your wallet holds." : "More than the vault holds."}</span>}
             </label>
             {limit !== undefined && limit > 0n && (
-              <button className="link hint" style={{ justifySelf: "start" }} onClick={() => setAmt(formatUsd(limit).replace(/\.?0+$/, "").replace(/^$/, "0"))}>
+              <button className="link hint" style={{ justifySelf: "start" }} onClick={() => setAmt(formatUsd(limit))}>
                 Use the full {formatUsd(limit)}
               </button>
             )}
