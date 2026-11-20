@@ -33,6 +33,9 @@ const ownerKey = generatePrivateKey();
 const owner = privateKeyToAccount(ownerKey);
 const ownerWallet = walletFor(owner);
 const TOKEN = dep.tUSD8;
+/** what the owner deposits: the scenario spends 0.90 and the rest is withdrawn at the end */
+const DEPOSIT = 1_250_000n;
+const DEPOSIT_TEXT = formatUsd(DEPOSIT);
 const FRAMES = "/tmp/warrant-frames";
 rmSync(FRAMES, { recursive: true, force: true });
 mkdirSync(FRAMES, { recursive: true });
@@ -72,7 +75,7 @@ if (!live) {
   const rpc = (method: string, params: any[]) => fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) }).then((r) => r.json());
   await rpc("anvil_setBalance", [owner.address, "0x" + parseEther("5").toString(16)]);
   const slot = keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [owner.address, 11n]));
-  await rpc("anvil_setStorageAt", [TOKEN, slot, "0x" + (3_000_000n).toString(16).padStart(64, "0")]);
+  await rpc("anvil_setStorageAt", [TOKEN, slot, "0x" + DEPOSIT.toString(16).padStart(64, "0")]);
 } else {
   const deployer = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as Hex);
   const send = async (from, to, data = undefined, value = undefined) => {
@@ -81,16 +84,17 @@ if (!live) {
   };
   await send(deployer, owner.address, undefined, parseEther("0.011"));
   const erc20 = [{ type: "function", name: "transfer", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }], stateMutability: "nonpayable" }];
-  let need = 3_000_000n;
-  for (const source of [prevOwner, deployer].filter(Boolean)) {
+  // save the new key before any money moves to it: a failure in between must not strand funds at an address nobody can sign for
+  writeFileSync(ownerKeyFile, ownerKey + "\n", { mode: 0o600 });
+  let need = DEPOSIT;
+  for (const source of [prevOwner, keys.merchantA, deployer].filter(Boolean)) {
     const have = await getTokenBalance(publicClient, TOKEN, source.address);
     const amount = have < need ? have : need;
     if (amount === 0n) continue;
     await send(source, TOKEN, encodeFunctionData({ abi: erc20, functionName: "transfer", args: [owner.address, amount] }));
     need -= amount;
   }
-  if (need > 0n) throw new Error(`could not fund the video wallet with 3.00 tUSD8 (short by ${formatUsd(need)})`);
-  writeFileSync(ownerKeyFile, ownerKey + "\n", { mode: 0o600 });
+  if (need > 0n) throw new Error(`could not fund the video wallet with ${formatUsd(DEPOSIT)} tUSD8 (short by ${formatUsd(need)}); the wallet key is in ${ownerKeyFile}`);
 }
 
 /* ------------------------------------------------------------------ wallet bridge: signs in Node */
@@ -404,9 +408,9 @@ try {
   await caption(dash, "03 · Fund it", "Deposit tUSD8. The owner only signs a transfer authorisation (EIP-3009); a relayer submits it and pays the gas.");
   await uncaption(dash);
   await clickText("button", "Deposit");
-  await typeInto('input[inputmode="decimal"]', "3");
+  await typeInto('input[inputmode="decimal"]', DEPOSIT_TEXT);
   await clickText("button", "Deposit");
-  await chain(dash.waitForFunction(() => document.querySelector(".balance .amt")?.textContent?.startsWith("3.00"), { timeout: 120000 }));
+  await chain(dash.waitForFunction((t) => document.querySelector(".balance .amt")?.textContent?.startsWith(t), { timeout: 120000 }, DEPOSIT_TEXT));
   await hold(1200);
 
   /* 4. mandate */
