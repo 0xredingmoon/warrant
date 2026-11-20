@@ -2,7 +2,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createPublicClient, createWalletClient, http, type Address, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { WarrantAgent } from "@warrant/sdk";
+import { RPC_HTTP, WarrantAgent } from "@warrant/sdk";
 import { createWarrantMcpServer } from "./index";
 
 /*
@@ -32,7 +32,7 @@ const chain: Chain = {
   rpcUrls: { default: { http: [rpc] } },
 };
 const account = privateKeyToAccount(need("AGENT_PRIVATE_KEY") as Hex);
-const publicClient = createPublicClient({ chain, transport: http(rpc) });
+const publicClient = createPublicClient({ chain, transport: http(rpc, RPC_HTTP) });
 const relayerUrl = process.env.RELAYER_URL || undefined;
 const agent = new WarrantAgent({
   signer: account,
@@ -42,7 +42,7 @@ const agent = new WarrantAgent({
   mandateId: BigInt(need("WARRANT_MANDATE_ID")),
   relayerUrl,
   relayerApiKey: process.env.RELAYER_API_KEY || undefined,
-  clients: relayerUrl ? undefined : { publicClient, walletClient: createWalletClient({ account, chain, transport: http(rpc) }) },
+  clients: relayerUrl ? undefined : { publicClient, walletClient: createWalletClient({ account, chain, transport: http(rpc, RPC_HTTP) }) },
   explorerUrl: process.env.EXPLORER_URL,
 });
 

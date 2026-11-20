@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPublicClient, createWalletClient, getAddress, http, type Address, type Chain, type Hex, type PublicClient, type WalletClient } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import { RPC_HTTP } from "@warrant/sdk";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 if (existsSync(resolve(ROOT, ".env"))) process.loadEnvFile(resolve(ROOT, ".env"));
@@ -23,8 +24,8 @@ export const chain: Chain = {
   blockExplorers: { default: { name: "Aevum Explorer", url: explorer } },
 };
 
-export const publicClient: PublicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-export const walletFor = (account: PrivateKeyAccount): WalletClient => createWalletClient({ account, chain, transport: http(rpcUrl) });
+export const publicClient: PublicClient = createPublicClient({ chain, transport: http(rpcUrl, RPC_HTTP) });
+export const walletFor = (account: PrivateKeyAccount): WalletClient => createWalletClient({ account, chain, transport: http(rpcUrl, RPC_HTTP) });
 
 export interface Deployments {
   tUSD8: Address;

@@ -8,6 +8,7 @@ import { resolve } from "node:path";
 import { mkdirSync } from "node:fs";
 import { createPublicClient, getAddress, http, type Address } from "viem";
 import { createMerchant } from "@warrant/merchant";
+import { RPC_HTTP } from "@warrant/sdk";
 import { startLedgerline, startNotesSite } from "./servers";
 
 const need = (k: string) => {
@@ -28,7 +29,7 @@ const host = process.env.HOST ?? "0.0.0.0";
 const dbPath = process.env.DATABASE_PATH ?? "./data/ledgerline.db";
 if (dbPath !== ":memory:") mkdirSync(resolve(dbPath, ".."), { recursive: true });
 
-const publicClient = createPublicClient({ transport: http(rpcUrl) });
+const publicClient = createPublicClient({ transport: http(rpcUrl, RPC_HTTP) });
 const merchant = createMerchant({ publicClient, chainId, factory, token, payTo, explorerUrl: explorer, name: "Ledgerline Data", dbPath });
 
 const ledgerline = await startLedgerline(merchant, {

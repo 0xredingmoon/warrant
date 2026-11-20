@@ -366,6 +366,7 @@ const ledgerline = await startLedgerline(merchant, { facilitatorUrl: RELAYER });
 const notes = await startNotesSite(evil, { token: TOKEN, chainId });
 
 const fail = async (e: any) => {
+  setTimeout(() => process.exit(1), 12000); // closing the browser can hang after a failure
   console.error("VIDEO RUN FAILED:", e?.stack ?? e);
   console.error("dash errors:", await dash.evaluate(() => [...document.querySelectorAll(".err")].map((x) => x.textContent)).catch(() => "?"));
   for (const [n, p] of [["dash", dash], ["stage", stage]]) await p.screenshot({ path: `/tmp/video-fail-${n}.png` }).catch(() => {});

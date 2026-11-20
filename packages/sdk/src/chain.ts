@@ -30,3 +30,6 @@ export const formatUsd = (v: bigint): string => {
   const [i, f = ""] = s.split(".");
   return `${i}.${f.padEnd(2, "0")}`;
 };
+
+/** HTTP transport options for Aevum's public RPC, which sometimes answers slowly: viem's 10 s default produced spurious timeouts. */
+export const RPC_HTTP = { timeout: 45_000, retryCount: 3, retryDelay: 500 } as const;

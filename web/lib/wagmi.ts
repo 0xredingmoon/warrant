@@ -15,7 +15,7 @@ export const aevum = defineChain({
 export const wagmiConfig = createConfig({
   chains: [aevum],
   connectors: [injected()],
-  transports: { [aevum.id]: http(RPC_URL) },
+  transports: { [aevum.id]: http(RPC_URL, { timeout: 30_000, retryCount: 3 }) },
   ssr: true,
   // eth_getLogs and batching limits on Aevum are strict; keep JSON-RPC calls unbatched.
   batch: undefined,

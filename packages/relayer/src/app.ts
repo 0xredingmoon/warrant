@@ -10,6 +10,7 @@ import {
   warrantFactoryAbi,
   warrantVaultAbi,
   Reason,
+  RPC_HTTP,
   type CheckResult,
   type PaymentIntent,
 } from "@warrant/sdk";
@@ -93,8 +94,8 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
     nativeCurrency: { name: "tQDAY", symbol: "tQDAY", decimals: 18 },
     rpcUrls: { default: { http: [cfg.rpcUrl] } },
   };
-  const publicClient = createPublicClient({ chain, transport: http(cfg.rpcUrl) });
-  const walletClient = createWalletClient({ account, chain, transport: http(cfg.rpcUrl) });
+  const publicClient = createPublicClient({ chain, transport: http(cfg.rpcUrl, RPC_HTTP) });
+  const walletClient = createWalletClient({ account, chain, transport: http(cfg.rpcUrl, RPC_HTTP) });
 
   const db = openDb(cfg.dbPath);
   const rates = new RateStore(db);
