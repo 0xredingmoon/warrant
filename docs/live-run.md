@@ -32,3 +32,33 @@ Recorded 2026-11-20T12:32:58.272Z. 17 transactions, 3 of them refusals the vault
 | 12 | Refused | 0.15 tUSD8 → Ledgerline: The owner revoked this mandate. No further payments are possible. | [0x7510df5e9ed2811812bc739e02220e63bd367fd56c3f9a7aeeb4a0ecfaa0cbc9](https://explorer-test.qday.info/tx/0x7510df5e9ed2811812bc739e02220e63bd367fd56c3f9a7aeeb4a0ecfaa0cbc9) |
 | 13 | Done | Ledgerline → agent: 96/100, tag delivery | [0xdde3068090766c01cffe8c91b9e6e0d0b4ff0a455072139f09b2d2ab62b3935b](https://explorer-test.qday.info/tx/0xdde3068090766c01cffe8c91b9e6e0d0b4ff0a455072139f09b2d2ab62b3935b) |
 | 14 | Done | owner withdrew the remaining 1.10 tUSD8 | [0xb45fd6b6c1b9996c30a04ce1b218dafbeb761b5052821ecbd3fd868c578e0e61](https://explorer-test.qday.info/tx/0xb45fd6b6c1b9996c30a04ce1b218dafbeb761b5052821ecbd3fd868c578e0e61) |
+
+## Demo video run (2026-11-20, 20:32 to 20:44 Asia/Tehran)
+
+The recording in the demo video was a live dashboard session, not the scripted scenario above. Vault
+[`0xf864d54a695D48b3b222bff935018f2a779acd7c`](https://explorer-test.qday.info/address/0xf864d54a695D48b3b222bff935018f2a779acd7c) (source-verified on the explorer), owner `0x27D7f61864CDf8bC6AAa0D157D8Ed3FDCCeb432d`,
+mandate #1 for a freshly generated agent key. The owner deposited through the gasless path (EIP-3009, relayer pays the gas), the
+relayer also paid for the payments, approval and refusals.
+
+14 vault events, 3 of them refusals recorded on-chain.
+
+| Block | What happened | Transaction |
+| --- | --- | --- |
+| 3678160 | Vault created, no guardian | [0x8200900095b5caa35fa2e0c2442c079b09a63bd5c3833323b34d3bfc1f295130](https://explorer-test.qday.info/tx/0x8200900095b5caa35fa2e0c2442c079b09a63bd5c3833323b34d3bfc1f295130) |
+| 3678182 | 1.25 tUSD8 deposited by 0x27D7…432d | [0x4a0c9cb1c1842433c44e6d21a35c996201ab9089fbd85f65e2235a1b9639b32d](https://explorer-test.qday.info/tx/0x4a0c9cb1c1842433c44e6d21a35c996201ab9089fbd85f65e2235a1b9639b32d) |
+| 3678237 | Mandate #1 created for agent 0xF9Fc…9583 (≤ 1.00 per payment, 1.00 per period, 3.00 total) | [0x6d92ddfb088ce25ee064d25b075b15967a8fc164838c9a14bfff310e2f7dc79a](https://explorer-test.qday.info/tx/0x6d92ddfb088ce25ee064d25b075b15967a8fc164838c9a14bfff310e2f7dc79a) |
+| 3678237 | Mandate #1: merchant 0xf2b0…b4Ae allowed | [0x6d92ddfb088ce25ee064d25b075b15967a8fc164838c9a14bfff310e2f7dc79a](https://explorer-test.qday.info/tx/0x6d92ddfb088ce25ee064d25b075b15967a8fc164838c9a14bfff310e2f7dc79a) |
+| 3678258 | Paid 0.15 tUSD8 to 0xf2b0…b4Ae under mandate #1 (fee 0.00015) | [0xa0b0e5bd36567bd9f8be1a0d105b7d253618c3896870b992662e3eb39b4dbbdc](https://explorer-test.qday.info/tx/0xa0b0e5bd36567bd9f8be1a0d105b7d253618c3896870b992662e3eb39b4dbbdc) |
+| 3678269 | Paid 0.25 tUSD8 to 0xf2b0…b4Ae under mandate #1 (fee 0.00025) | [0xa9fc85a3af3acc867b7a772e153cf4936df2362aaf07879b697be266c4accdf9](https://explorer-test.qday.info/tx/0xa9fc85a3af3acc867b7a772e153cf4936df2362aaf07879b697be266c4accdf9) |
+| 3678298 | Refused 0.40 tUSD8 to 0x276D…2f33 under mandate #1: That recipient is not on this mandate's merchant allowlist. The agent may only pay merchants the owner approved. | [0x03e320c8396faaa03f95a2dde28669a68336366da525de3592bc0171165ed55f](https://explorer-test.qday.info/tx/0x03e320c8396faaa03f95a2dde28669a68336366da525de3592bc0171165ed55f) |
+| 3678699 | Queued 0.50 tUSD8 to 0xf2b0…b4Ae for owner approval (#1) | [0x3426deaaba760646e6c3f6eb7f59d87bba61cbcd5eb7134f9accabd6e991f0ca](https://explorer-test.qday.info/tx/0x3426deaaba760646e6c3f6eb7f59d87bba61cbcd5eb7134f9accabd6e991f0ca) |
+| 3678728 | Queued payment #1 approved by 0x27D7…432d | [0x726649a605900c4db1f96f84f8a1ebd1ba69fc50548041c276e4480daa4e326d](https://explorer-test.qday.info/tx/0x726649a605900c4db1f96f84f8a1ebd1ba69fc50548041c276e4480daa4e326d) |
+| 3678728 | Paid 0.50 tUSD8 to 0xf2b0…b4Ae under mandate #1 (fee 0.0005) | [0x726649a605900c4db1f96f84f8a1ebd1ba69fc50548041c276e4480daa4e326d](https://explorer-test.qday.info/tx/0x726649a605900c4db1f96f84f8a1ebd1ba69fc50548041c276e4480daa4e326d) |
+| 3678745 | Refused 0.20 tUSD8 to 0xf2b0…b4Ae under mandate #1: This payment would exceed the mandate's spending limit for the trailing period. | [0xbb8ba73dd26f7c6c6f9194a519ce21a0d5b9f915f9cacc2326ef6e6fa4d6a424](https://explorer-test.qday.info/tx/0xbb8ba73dd26f7c6c6f9194a519ce21a0d5b9f915f9cacc2326ef6e6fa4d6a424) |
+| 3678767 | Mandate #1 revoked by 0x27D7…432d | [0x4a6c3b82d8e849c5a14516616e9f783a941e39a936f47b1aa5f16383fd449068](https://explorer-test.qday.info/tx/0x4a6c3b82d8e849c5a14516616e9f783a941e39a936f47b1aa5f16383fd449068) |
+| 3678774 | Refused 0.15 tUSD8 to 0xf2b0…b4Ae under mandate #1: The owner revoked this mandate. No further payments are possible. | [0xdd948a1b50501c03e0f3a58b9b4c686b081151605d45e8a1f248f1544a55238d](https://explorer-test.qday.info/tx/0xdd948a1b50501c03e0f3a58b9b4c686b081151605d45e8a1f248f1544a55238d) |
+| 3678787 | 0.35 tUSD8 withdrawn to 0x27D7…432d | [0x9152e50bfb06d05914d88d8920e087b4d1d73d52a7b1c8ef1d885e4223b9d118](https://explorer-test.qday.info/tx/0x9152e50bfb06d05914d88d8920e087b4d1d73d52a7b1c8ef1d885e4223b9d118) |
+
+The agent registration (ERC-721 identity #11 and the wallet binding) and the vault creation are on the factory and registry
+pages: [AgentRegistry](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d), [WarrantFactory](https://explorer-test.qday.info/address/0x66687369d9C683aaaaDAe98b747b63eE7e0662E3).
+Regenerate this table for any vault with `WARRANT_NETWORK=aevum VAULT=0x… pnpm --filter @warrant/demo exec tsx src/video-log.ts`.

@@ -11,6 +11,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 export const SPEEDUP = 3.5;
 export const MAX_WAIT = 4.5;
 const MERGE_GAP = 3000;
+/** longest a still picture stays on screen, in seconds: a stalled browser or a slow step must not become dead air (real holds are shorter) */
+const MAX_STILL = 9;
 
 export interface Recording {
   frames: { file: string; t: number }[];
@@ -31,14 +33,14 @@ export function encode(rec: Recording, framesDir: string, outFile: string) {
     const next = frames[i + 1]?.t ?? end;
     const span = waits.find(([a, b]) => f.t >= a && f.t < b);
     const factor = span ? Math.min(1 / SPEEDUP, MAX_WAIT / Math.max(0.001, (span[1] - span[0]) / 1000)) : 1;
-    list.push(`file '${f.file}'`, `duration ${Math.max(0.01, ((next - f.t) / 1000) * factor).toFixed(3)}`);
+    list.push(`file '${f.file}'`, `duration ${Math.max(0.01, Math.min(MAX_STILL, ((next - f.t) / 1000) * factor)).toFixed(3)}`);
   });
   list.push(`file '${frames.at(-1)!.file}'`);
   const total = frames.reduce((t, f, i) => {
     const next = frames[i + 1]?.t ?? end;
     const span = waits.find(([a, b]) => f.t >= a && f.t < b);
     const factor = span ? Math.min(1 / SPEEDUP, MAX_WAIT / Math.max(0.001, (span[1] - span[0]) / 1000)) : 1;
-    return t + Math.max(0.01, ((next - f.t) / 1000) * factor);
+    return t + Math.max(0.01, Math.min(MAX_STILL, ((next - f.t) / 1000) * factor));
   }, 0);
   writeFileSync(`${framesDir}/list.txt`, list.join("\n"));
   const vf = "scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0xf2efe7,fps=30,format=yuv420p";

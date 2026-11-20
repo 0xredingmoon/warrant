@@ -23,7 +23,7 @@ Deployment transactions (block 3661989): [AgentRegistry](https://explorer-test.q
 A complete scenario was run against these contracts on 2026-11-20: [`docs/live-run.md`](docs/live-run.md)
 lists all 17 transactions with explorer links, three of them refusals that the vault recorded on-chain. The vault
 from that run, [`0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16`](https://explorer-test.qday.info/address/0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16),
-is also source-verified, as is [the vault from the recorded demo video](https://explorer-test.qday.info/address/0x1402465F04Cf62fB822f0e4fD0f9cD2Be595ad88).
+is also source-verified, as is [the vault from the recorded demo video](https://explorer-test.qday.info/address/0xf864d54a695D48b3b222bff935018f2a779acd7c).
 The explorer does not verify vaults the factory creates on its own: each one needs `forge verify-contract <vault> src/WarrantVault.sol:WarrantVault
 --verifier blockscout --verifier-url https://explorer-test.qday.info/api/ --chain 44005 --constructor-args $(cast abi-encode "constructor(address,address,address,address)" <tUSD8> <owner> <guardian> <registry>)`.
 
@@ -286,7 +286,7 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
 | Suite | Count | What it covers |
 | --- | --- | --- |
 | Foundry | 162 | Every reason code and cap edge, the rolling window across bucket boundaries, `payOrRefuse` and `PaymentRefused`, signature binding, approval queue, funding (incl. reentrancy), factory and registry, fuzzing and invariants, Shanghai opcode scan, deploy script, fork tests on the real tUSD8 |
-| vitest | 58 | store (3), sdk (22), mcp (4), merchant (12), relayer (17): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), merchant 402 and x402 flows, MCP tools over an in-memory transport |
+| vitest | 59 | store (3), sdk (22), mcp (4), merchant (13), relayer (17): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), merchant 402 and x402 flows, MCP tools over an in-memory transport |
 | Scenario | 1 | `pnpm demo:fork` and `pnpm demo:aevum` assert every step's outcome |
 | UI | 3 | `web/e2e/smoke.mjs` drives the dashboard on the fork with a mock wallet; `web/e2e/wallet-states.mjs` covers wallet edge cases; `web/e2e/live-readonly.mjs` reads a live vault |
 
