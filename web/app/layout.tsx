@@ -1,0 +1,24 @@
+import type { Metadata } from "next";
+import { IBM_Plex_Mono, Newsreader, Schibsted_Grotesk } from "next/font/google";
+import type { ReactNode } from "react";
+import { Providers } from "./providers";
+import "./globals.css";
+
+const sans = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const serif = Newsreader({ subsets: ["latin"], variable: "--font-serif", display: "swap", style: ["normal", "italic"] });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-mono", display: "swap" });
+
+export const metadata: Metadata = {
+  title: "Warrant: spending mandates for AI agents",
+  description: "Give an AI agent a spending mandate instead of a wallet key. Caps, an allowlist, an approval step and instant revoke, enforced by a contract on Aevum.",
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}

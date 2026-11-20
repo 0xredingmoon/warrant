@@ -5,7 +5,6 @@ import type { MandateParams } from "./types";
 export interface MandateTemplate {
   id: string;
   name: string;
-  emoji: string;
   description: string;
   /** tUSD8 amounts as decimal strings */
   perTx: string;
@@ -22,8 +21,7 @@ export const MANDATE_TEMPLATES: MandateTemplate[] = [
   {
     id: "research-assistant",
     name: "Research assistant",
-    emoji: "🔎",
-    description: "Buys data and API calls while you sleep. Small payments go through; anything bigger waits for you.",
+    description: "Buys data and API calls. Payments under 3.00 go through; larger ones wait for your approval.",
     perTx: "5",
     period: "20",
     total: "100",
@@ -35,8 +33,7 @@ export const MANDATE_TEMPLATES: MandateTemplate[] = [
   {
     id: "micro-payments",
     name: "Pay-per-request (x402 style)",
-    emoji: "⚡",
-    description: "Tiny per-call payments to API providers. Never above 10 cents, 5 dollars a day.",
+    description: "Tiny per-call payments to API providers. At most 0.10 per call and 5.00 a day.",
     perTx: "0.10",
     period: "5",
     total: "30",
@@ -48,8 +45,7 @@ export const MANDATE_TEMPLATES: MandateTemplate[] = [
   {
     id: "subscription-runner",
     name: "Subscription runner",
-    emoji: "🔁",
-    description: "Pays recurring SaaS invoices for three months, one invoice a month at most.",
+    description: "Pays recurring invoices for three months. At most 25.00 a month.",
     perTx: "25",
     period: "25",
     total: "75",
@@ -61,8 +57,7 @@ export const MANDATE_TEMPLATES: MandateTemplate[] = [
   {
     id: "shopping-errand",
     name: "One-day shopping errand",
-    emoji: "🛒",
-    description: "A single day, 50 dollars, and anything of 25 or more needs your tap.",
+    description: "One day, 50.00 in total. Anything from 25.00 up needs your approval.",
     perTx: "50",
     period: "50",
     total: "50",

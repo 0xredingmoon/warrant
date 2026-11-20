@@ -1,0 +1,207 @@
+"use client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getAddress, isAddress, type Address, type Hex } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import {
+  MANDATE_TEMPLATES,
+  createMandate,
+  formatUsd,
+  parseUsd,
+  registerAgent,
+  setAgentWallet,
+  signAgentWallet,
+  templateToParams,
+  type MandateTemplate,
+} from "@warrant/sdk";
+import { CHAIN_ID, REGISTRY } from "@/lib/config";
+import { cleanAmount } from "@/lib/format";
+import { useClients } from "@/lib/hooks";
+import { useTx } from "@/lib/tx";
+
+const toStr = (t: MandateTemplate) => ({
+  perTx: t.perTx,
+  period: t.period,
+  total: t.total,
+  periodHours: String(t.periodHours),
+  durationDays: String(t.durationDays),
+  threshold: t.approvalAbove,
+  windowHours: String(t.approvalWindowHours),
+});
+
+const num = (s: string) => (s === "" || s === "." ? 0n : parseUsd(s));
+const int = (s: string) => (/^\d+(\.\d+)?$/.test(s) ? Number(s) : NaN);
+
+export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: () => void }) {
+  const { clients, ready } = useClients();
+  const { run, busy } = useTx();
+  const [tpl, setTpl] = useState<string>(MANDATE_TEMPLATES[0]!.id);
+  const [f, setF] = useState(toStr(MANDATE_TEMPLATES[0]!));
+  const [agent, setAgent] = useState("");
+  const [genKey, setGenKey] = useState<Hex>();
+  const [register, setRegister] = useState(true);
+  const [merchants, setMerchants] = useState("");
+  const [shown, setShown] = useState(false);
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    first.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, onClose]);
+
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTpl("custom");
+    setF({ ...f, [k]: k.includes("Hours") || k === "durationDays" ? e.target.value.replace(/[^\d.]/g, "") : cleanAmount(e.target.value) });
+  };
+
+  const merchantList = useMemo(() => merchants.split(/[\s,]+/).filter(Boolean), [merchants]);
+  const errors = useMemo(() => {
+    const e: Record<string, string> = {};
+    if (!isAddress(agent)) e.agent = "Enter the agent's address, or generate a key below.";
+    const bad = merchantList.filter((m) => !isAddress(m));
+    if (merchantList.length === 0) e.merchants = "List at least one merchant address. An unlisted merchant can never be paid.";
+    else if (bad.length) e.merchants = `Not an address: ${bad[0]}`;
+    else if (new Set(merchantList.map((m) => m.toLowerCase())).size !== merchantList.length) e.merchants = "A merchant is listed twice.";
+    else if (merchantList.length > 32) e.merchants = "At most 32 merchants per mandate.";
+    const perTx = num(f.perTx), period = num(f.period), total = num(f.total), thr = num(f.threshold);
+    if (perTx === 0n) e.perTx = "Must be above zero.";
+    else if (perTx > period) e.period = "The daily/period limit can't be below the per-payment limit.";
+    if (period > total) e.total = "The lifetime limit can't be below the period limit.";
+    if (thr > perTx) e.threshold = "Approval threshold can't be above the per-payment limit. Use 0 for none.";
+    if (!(int(f.periodHours) >= 1)) e.periodHours = "At least 1 hour.";
+    if (!(int(f.durationDays) > 0) || int(f.durationDays) > 365) e.durationDays = "Between 1 and 365 days.";
+    if (thr > 0n && !(int(f.windowHours) >= 1)) e.windowHours = "Give yourself at least 1 hour to decide.";
+    return e;
+  }, [agent, merchantList, f]);
+  const valid = Object.keys(errors).length === 0;
+
+  function pick(t: MandateTemplate) {
+    setTpl(t.id);
+    setF(toStr(t));
+  }
+
+  async function submit() {
+    if (!clients || !valid) return;
+    const agentAddr = getAddress(agent);
+    const res = await run("Issue mandate", async () => {
+      let agentId = 0n;
+      if (genKey && register && privateKeyToAccount(genKey).address === agentAddr) {
+        const reg = await registerAgent({ clients, registry: REGISTRY, agentURI: `warrant:agent:${agentAddr.toLowerCase()}` });
+        agentId = reg.agentId;
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+        const signature = await signAgentWallet({ signer: privateKeyToAccount(genKey), chainId: CHAIN_ID, registry: REGISTRY, agentId, newWallet: agentAddr, owner: clients.walletClient.account!.address, deadline });
+        await setAgentWallet({ clients, registry: REGISTRY, agentId, newWallet: agentAddr, deadline, signature });
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const thr = num(f.threshold);
+      const params = templateToParams(
+        { id: "c", name: "", description: "", perTx: f.perTx, period: f.period, total: f.total, periodHours: int(f.periodHours), durationDays: int(f.durationDays), approvalAbove: f.threshold || "0", approvalWindowHours: thr > 0n ? int(f.windowHours) : 0 },
+        agentAddr,
+        { agentId, now },
+      );
+      return createMandate({ clients, vault, params, merchants: merchantList.map((m) => ({ address: getAddress(m) })) });
+    });
+    if (res) onClose();
+  }
+
+  return (
+    <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <aside className="sheet" role="dialog" aria-modal="true" aria-labelledby="nm-h">
+        <div className="row">
+          <h2 id="nm-h">New mandate</h2>
+          <button className="btn quiet sm sheet-x" onClick={onClose} disabled={busy}>Close</button>
+        </div>
+
+        <div>
+          <div className="label" style={{ marginBottom: 8 }}>Start from a template</div>
+          <div className="tpls">
+            {MANDATE_TEMPLATES.map((t, i) => (
+              <button key={t.id} ref={i === 0 ? first : undefined} className="tpl" aria-pressed={tpl === t.id} onClick={() => pick(t)}>
+                <strong>{t.name}</strong>
+                <span>{t.description}</span>
+                <span className="num">
+                  {t.perTx} per payment · {t.period} per {t.periodHours >= 24 && t.periodHours % 24 === 0 ? (t.periodHours === 24 ? "day" : `${t.periodHours / 24} days`) : `${t.periodHours} h`} · {t.total} total
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="form-grid">
+          <label className="field wide">
+            <span>Agent address</span>
+            <input className={`input mono ${errors.agent && agent ? "bad" : ""}`} value={agent} onChange={(e) => { setAgent(e.target.value.trim()); setGenKey(undefined); }} placeholder="0x… the key the agent signs with" spellCheck={false} />
+            {agent && errors.agent ? <span className="err">{errors.agent}</span> : <span className="hint">The agent only signs payment requests. It never needs tQDAY.</span>}
+          </label>
+          <div className="wide">
+            {genKey ? (
+              <div className="key-box">
+                <strong>New agent key. Copy it now; this page does not store it.</strong>
+                <code>{shown ? genKey : "•".repeat(40)}</code>
+                <div className="row">
+                  <button className="btn quiet sm" onClick={() => setShown(!shown)}>{shown ? "Hide" : "Reveal"}</button>
+                  <button className="btn quiet sm" onClick={() => navigator.clipboard.writeText(genKey)}>Copy key</button>
+                </div>
+                <label className="check">
+                  <input type="checkbox" checked={register} onChange={(e) => setRegister(e.target.checked)} />
+                  <span>Register this agent in the AgentRegistry first (two extra transactions). Merchants can then rate it against paid receipts.</span>
+                </label>
+              </div>
+            ) : (
+              <button
+                className="link hint"
+                onClick={() => {
+                  const k = generatePrivateKey();
+                  setGenKey(k);
+                  setAgent(privateKeyToAccount(k).address);
+                  setShown(false);
+                }}
+              >
+                Generate a new agent key in this browser
+              </button>
+            )}
+          </div>
+
+          <label className="field wide">
+            <span>Merchants the agent may pay (one address per line)</span>
+            <textarea className={`input mono ${errors.merchants && merchants ? "bad" : ""}`} rows={3} value={merchants} onChange={(e) => setMerchants(e.target.value)} placeholder={"0x…\n0x…"} spellCheck={false} />
+            {merchants && errors.merchants ? <span className="err">{errors.merchants}</span> : <span className="hint">Anyone not on this list is refused, whatever the agent is told to do.</span>}
+          </label>
+
+          <Amount label="Per payment, at most" v={f.perTx} onChange={set("perTx")} err={errors.perTx} />
+          <Amount label="Per window, at most" v={f.period} onChange={set("period")} err={errors.period} />
+          <Amount label="Lifetime total, at most" v={f.total} onChange={set("total")} err={errors.total} />
+          <Plain label="Window length" suffix="hours" v={f.periodHours} onChange={set("periodHours")} err={errors.periodHours} />
+          <Plain label="Valid for" suffix="days" v={f.durationDays} onChange={set("durationDays")} err={errors.durationDays} />
+          <Amount label="Ask me from this amount (0 = never)" v={f.threshold} onChange={set("threshold")} err={errors.threshold} />
+          {num(f.threshold) > 0n && <Plain label="Time I have to decide" suffix="hours" v={f.windowHours} onChange={set("windowHours")} err={errors.windowHours} />}
+        </div>
+
+        <div className="row" style={{ borderTop: "1px solid var(--line)", paddingTop: 18 }}>
+          <button className="btn" disabled={!ready || !valid || busy} onClick={submit}>
+            {busy ? "Working…" : "Issue mandate"}
+          </button>
+          <span className="hint">
+            {valid ? `Up to ${formatUsd(num(f.total))} tUSD8 can leave the vault under this mandate.` : "Fix the highlighted fields to continue."}
+          </span>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function Amount({ label, v, onChange, err }: { label: string; v: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; err?: string }) {
+  return <Plain label={label} suffix="tUSD8" v={v} onChange={onChange} err={err} />;
+}
+function Plain({ label, suffix, v, onChange, err }: { label: string; suffix: string; v: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; err?: string }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <div className="affix" style={err ? { borderColor: "var(--stop)" } : undefined}>
+        <input inputMode="decimal" value={v} onChange={onChange} aria-invalid={!!err} />
+        <em>{suffix}</em>
+      </div>
+      {err && <span className="err">{err}</span>}
+    </label>
+  );
+}
