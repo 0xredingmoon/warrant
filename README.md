@@ -23,7 +23,9 @@ Deployment transactions (block 3661989): [AgentRegistry](https://explorer-test.q
 A complete scenario was run against these contracts on 2026-11-20: [`docs/live-run.md`](docs/live-run.md)
 lists all 17 transactions with explorer links, three of them refusals that the vault recorded on-chain. The vault
 from that run, [`0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16`](https://explorer-test.qday.info/address/0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16),
-is also source-verified (the explorer links every vault deployed by the factory to the same verified source).
+is also source-verified, as is [the vault from the recorded demo video](https://explorer-test.qday.info/address/0x1402465F04Cf62fB822f0e4fD0f9cD2Be595ad88).
+The explorer does not verify vaults the factory creates on its own: each one needs `forge verify-contract <vault> src/WarrantVault.sol:WarrantVault
+--verifier blockscout --verifier-url https://explorer-test.qday.info/api/ --chain 44005 --constructor-args $(cast abi-encode "constructor(address,address,address,address)" <tUSD8> <owner> <guardian> <registry>)`.
 
 ## What the demo shows
 

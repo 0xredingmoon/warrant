@@ -18,6 +18,7 @@ import { encodeAbiParameters, encodeFunctionData, getAddress, keccak256, parseEt
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { chain, chainId, demoKeys, explorer, loadDeployments, network, publicClient, ROOT, rpcUrl, walletFor } from "./env";
 import { startLedgerline, startNotesSite } from "./servers";
+import { encode } from "./encode";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const RELAYER = process.env.RELAYER_URL ?? "http://localhost:8787";
@@ -48,8 +49,6 @@ const txUrl = (h: string) => `${explorer}/tx/${h}`;
 const captionsLog: string[] = [];
 /** spans of real time spent waiting on the chain; the encoder plays them faster and the page shows a small badge */
 const waits: [number, number][] = [];
-const SPEEDUP = 3.5;
-const MAX_WAIT = 6; // seconds on screen per wait for the chain, at most
 async function chain<T>(p: Promise<T>): Promise<T> {
   const t = Date.now();
   const page = cur?.page;
@@ -626,21 +625,8 @@ notes.server.close();
 
 const end = Date.now();
 writeFileSync(`${FRAMES}/frames.json`, JSON.stringify({ frames, waits, end }));
-const list: string[] = [];
-frames.forEach((f, i) => {
-  const next = frames[i + 1]?.t ?? end;
-  const span = waits.find(([a, b]) => f.t >= a && f.t < b);
-  // a wait for the chain plays at SPEEDUP, and never longer than MAX_WAIT seconds on screen however slow the RPC was
-  const factor = span ? Math.min(1 / SPEEDUP, MAX_WAIT / Math.max(0.001, (span[1] - span[0]) / 1000)) : 1;
-  const dur = Math.max(0.01, ((next - f.t) / 1000) * factor);
-  list.push(`file '${f.file}'`, `duration ${dur.toFixed(3)}`);
-});
-list.push(`file '${frames.at(-1).file}'`);
-writeFileSync(`${FRAMES}/list.txt`, list.join("\n"));
-const vf = "scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0xf2efe7,fps=30,format=yuv420p";
-execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", `${FRAMES}/list.txt`, "-vf", vf, "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-movflags", "+faststart", "-an", `${OUT}/${process.env.FILE ?? "demo.mp4"}`], { stdio: "inherit" });
+const outFile = `${OUT}/${process.env.FILE ?? "demo.mp4"}`;
+encode({ frames, waits, end }, FRAMES, outFile);
 writeFileSync(`${OUT}/captions.txt`, captionsLog.join("\n") + "\n");
-const dur = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", `${OUT}/${process.env.FILE ?? "demo.mp4"}`]).toString().trim();
-console.log(`video ${OUT}/${process.env.FILE ?? "demo.mp4"}  ${Number(dur).toFixed(1)}s`);
 if (pageErrors.length) console.log("page errors:\n" + [...new Set(pageErrors)].slice(0, 8).join("\n"));
 process.exit(0);
