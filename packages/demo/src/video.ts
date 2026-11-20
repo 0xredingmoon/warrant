@@ -442,7 +442,7 @@ try {
   await clickText("button", "Issue mandate");
   await caption(dash, "04 · The mandate", "Registering the agent identity (ERC-8004 shaped), then creating the mandate. Three transactions.", 600);
   await chain(waitText("Mandate #1", 180000));
-  await dash.waitForFunction(() => !document.querySelector(".sheet"), { timeout: 15000 });
+  await chain(dash.waitForFunction(() => !document.querySelector(".sheet"), { timeout: 90000 }));
   await sleep(800);
   await scrollTop();
   await shot(dash, "03-mandate-active");
