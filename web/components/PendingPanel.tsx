@@ -7,7 +7,7 @@ import { addrLink, short, until } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
 import { useTx } from "@/lib/tx";
 
-export function PendingPanel({ vault, pending, mandates, loading }: { vault: Address; pending?: Pending[]; mandates?: Mandate[]; loading: boolean }) {
+export function PendingPanel({ vault, vaultName, pending, mandates, loading }: { vault: Address; vaultName: string; pending?: Pending[]; mandates?: Mandate[]; loading: boolean }) {
   const { address } = useWallet();
   const { clients, wallet, ready } = useClients();
   const { run, busy } = useTx();
@@ -53,7 +53,7 @@ export function PendingPanel({ vault, pending, mandates, loading }: { vault: Add
               <div className="hint">
                 To{" "}
                 <a className="mono" href={addrLink(p.merchant)} target="_blank" rel="noreferrer">{short(p.merchant, 5)}</a>
-                {" "}· mandate #{p.mandateId.toString()}
+                {" "}· mandate #{p.mandateId.toString()} in {vaultName}
                 {mandates && ` · agent ${short(mandates.find((m) => m.id === p.mandateId)?.params.agent ?? "0x0000000000", 4)}`}
               </div>
               <div className="row">

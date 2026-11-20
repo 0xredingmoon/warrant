@@ -240,3 +240,9 @@ select.input { padding-right: 28px; }
 body:has(.sheet) .toasts { right: auto; left: 18px; }
 @media (max-width: 960px) { body:has(.sheet) .toasts { left: 18px; right: 18px; bottom: auto; top: 14px; width: auto; } }
 .btn.is-busy:disabled { opacity: 1; cursor: progress; }
+.flow-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.flow-steps li { display: flex; align-items: center; gap: 10px; color: var(--ink-3); }
+.flow-steps li.now { color: var(--ink); }
+.flow-steps li.done { color: var(--ink-2); }
+.flow-steps .tick { color: var(--ok); width: 14px; text-align: center; font-weight: 600; }
+.flow-steps .dot-s { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); margin: 0 4px; }

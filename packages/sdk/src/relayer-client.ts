@@ -17,11 +17,12 @@ export interface RelayPayResponse {
 const ser = (v: unknown): unknown =>
   JSON.parse(JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x)));
 
-async function post<T>(url: string, body: unknown, apiKey?: string): Promise<T> {
+async function post<T>(url: string, body: unknown, apiKey?: string, timeoutMs?: number): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
     body: JSON.stringify(ser(body)),
+    signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
   });
   const json: any = await res.json().catch(() => ({}));
   if (!res.ok && !json?.status) throw new Error(json?.error ?? `relayer error ${res.status}`);
@@ -63,12 +64,17 @@ export function relayDeposit(args: {
   nonce: Hex;
   signature: Hex;
   apiKey?: string;
+  /** false: return as soon as the relayer has broadcast the transaction (`status: "submitted"`); follow the receipt yourself */
+  wait?: boolean;
+  /** give up on the relayer's answer after this many ms (the deposit may still land: check the balance before signing again) */
+  timeoutMs?: number;
 }) {
-  const { relayerUrl, apiKey, ...body } = args;
-  return post<{ status: "executed" | "failed"; txHash?: Hex; explorerUrl?: string; error?: string }>(
+  const { relayerUrl, apiKey, timeoutMs, ...body } = args;
+  return post<{ status: "executed" | "submitted" | "failed"; txHash?: Hex; explorerUrl?: string; error?: string; duplicate?: boolean }>(
     `${relayerUrl.replace(/\/$/, "")}/v1/deposit`,
     body,
     apiKey,
+    timeoutMs,
   );
 }
 

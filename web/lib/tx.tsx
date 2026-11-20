@@ -12,6 +12,12 @@ export interface Toast {
   title: string;
   detail?: string;
   hash?: string;
+  startedAt: number;
+}
+
+/** What a flow can tell the screen while it runs. */
+export interface Progress {
+  step: (detail: string, hash?: string) => void;
 }
 
 interface Ctx {
@@ -21,7 +27,7 @@ interface Ctx {
    * Run a transaction flow with progress and error reporting. Returns the result, or undefined if it failed.
    * `onSuccess` runs the moment the flow resolves (receipt in hand), before the slower refetch: use it to update what is on screen.
    */
-  run: <T extends { hash?: string }>(title: string, fn: () => Promise<T>, opts?: { onSuccess?: (res: T) => void }) => Promise<T | undefined>;
+  run: <T extends { hash?: string }>(title: string, fn: (p: Progress) => Promise<T>, opts?: { onSuccess?: (res: T) => void }) => Promise<T | undefined>;
   busy: boolean;
 }
 
@@ -61,15 +67,21 @@ export function TxProvider({ children }: { children: ReactNode }) {
       setToasts((t) => {
         // one toast per action: a repeat replaces the earlier one, and only the newest few stay on screen
         const rest = t.filter((x) => x.title !== title);
-        return [...rest, { id, tone: "pending" as const, title, detail: "Confirm in your wallet, then wait for the block." }].slice(-MAX_TOASTS);
+        return [...rest, { id, tone: "pending" as const, title, detail: "Confirm in your wallet, then wait for the block.", startedAt: Date.now() }].slice(-MAX_TOASTS);
       });
       setBusy((n) => n + 1);
+      const progress: Progress = { step: (detail, hash) => setToasts((t) => t.map((x) => (x.id === id ? { ...x, detail, hash: hash ?? x.hash } : x))) };
       try {
-        const res = await fn();
-        settle(id, { tone: "ok", detail: undefined, hash: res?.hash });
+        const res = await fn(progress);
         opts?.onSuccess?.(res);
-        // refresh in the background; the screen already shows the result
-        void qc.invalidateQueries();
+        // "Done" only once the balances on screen have been read again (or a few seconds have passed)
+        progress.step("Confirmed. Updating balances…", res?.hash);
+        await Promise.race([
+          qc.refetchQueries({ predicate: (q) => ["gas", "vaults", "vault", "tusd8"].includes(String(q.queryKey[0])) }),
+          new Promise((r) => setTimeout(r, 6000)),
+        ]).catch(() => undefined);
+        settle(id, { tone: "ok", detail: undefined, hash: res?.hash });
+        void qc.invalidateQueries({ queryKey: ["audit"] });
         setTimeout(() => void qc.invalidateQueries(), 3000);
         return res;
       } catch (e) {
@@ -96,6 +108,16 @@ export const useTx = () => {
   return v;
 };
 
+function Elapsed({ since }: { since: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const i = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(i);
+  }, []);
+  const s = Math.max(0, Math.round((now - since) / 1000));
+  return s >= 3 ? <span className="muted num" style={{ fontSize: 12 }}>{s} s</span> : null;
+}
+
 export function Toasts() {
   const { toasts, dismiss } = useTx();
   return (
@@ -104,13 +126,13 @@ export function Toasts() {
         <div key={t.id} className={`toast toast-${t.tone}`}>
           <div className="toast-main">
             <strong>{t.title}</strong>
-            {t.tone === "pending" && <span className="spinner" aria-hidden />}
+            {t.tone === "pending" && <><span className="spinner" aria-hidden /><Elapsed since={t.startedAt} /></>}
             {t.tone === "ok" && <span className="muted">Done</span>}
           </div>
           {t.detail && <p>{t.detail}</p>}
           {t.hash && (
             <a href={txLink(t.hash)} target="_blank" rel="noreferrer" className="mono">
-              View transaction ↗
+              {t.tone === "pending" ? "Transaction sent · view" : "View transaction"} ↗
             </a>
           )}
           {t.tone !== "pending" && (

@@ -16,9 +16,13 @@ import {
   listMandates,
   listPending,
   type AuditEntry,
+  type Mandate,
+  type Pending,
+  type VaultState,
   type WindowState,
 } from "@warrant/sdk";
 import { zeroAddress } from "viem";
+import { loadCache, saveCache } from "./cache";
 import { DEPLOY_BLOCK, FACTORY, INDEXER_URL, REGISTRY, TOKEN } from "./config";
 
 const POLL = 4000;
@@ -42,10 +46,19 @@ export function useVaults(owner?: Address) {
   return useQuery({
     queryKey: ["vaults", owner],
     enabled: !!owner,
-    queryFn: () => getVaultsOf(client, FACTORY, owner!),
+    queryFn: async () => {
+      const v = await getVaultsOf(client, FACTORY, owner!);
+      if (v.length) saveCache(`vaults:${FACTORY}:${owner}`, v); // an empty list is never worth painting first
+      return v;
+    },
+    // the last known list paints at once; the refetch behind it keeps it honest
+    initialData: () => loadCache<readonly Address[]>(`vaults:${FACTORY}:${owner}`),
+    initialDataUpdatedAt: 0,
     refetchInterval: POLL * 2,
   });
 }
+
+type VaultData = { state: VaultState; mandates: Mandate[]; pending: Pending[]; windows: Map<string, WindowState> };
 
 export function useVault(vault?: Address) {
   const client = useClient();
@@ -61,8 +74,12 @@ export function useVault(vault?: Address) {
       const windows = new Map<string, WindowState>(
         await Promise.all(mandates.map(async (m) => [m.id.toString(), await getWindow(client, vault!, m.id)] as const)),
       );
-      return { state, mandates, pending, windows };
+      const out = { state, mandates, pending, windows };
+      saveCache(`vault:${vault}`, out);
+      return out;
     },
+    initialData: () => (vault ? loadCache<VaultData>(`vault:${vault}`) : undefined),
+    initialDataUpdatedAt: 0,
     refetchInterval: POLL,
   });
 }

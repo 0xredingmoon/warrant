@@ -11,7 +11,7 @@ import { mkdirSync } from "node:fs";
 
 const WEB = process.env.WEB_URL ?? "http://localhost:3000";
 const OUT = process.env.SHOTS ?? "/tmp/warrant-wallet-states";
-const ACCOUNT = "0x9deF7070074E11a319f4b5D80902eF04b7BeE0EC"; // the tester address; nothing is signed with it
+const ACCOUNT = "0x1111111111111111111111111111111111111111"; // an address that owns no vault; nothing is signed with it
 mkdirSync(OUT, { recursive: true });
 const failures = [];
 const expect = (ok, what) => (console.log(ok ? "  ok  " : "  FAIL", what), ok || failures.push(what));

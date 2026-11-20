@@ -11,5 +11,13 @@ export const aevum = defineChain({
   testnet: true,
 });
 
-/** Reads go straight to the Aevum RPC, whatever network the wallet is on. Unbatched: the RPC's eth_getLogs limits are strict. */
-export const publicClient = createPublicClient({ chain: aevum, transport: http(RPC_URL, { timeout: 30_000, retryCount: 3 }) }) as PublicClient;
+/**
+ * Reads go straight to the Aevum RPC, whatever network the wallet is on. Contract reads made in the same moment are
+ * bundled into one Multicall3 call (a vault view is about 20 reads: one round trip instead of 20 queued behind the
+ * browser's connection limit). Log queries are not bundled; the RPC's eth_getLogs limits are strict.
+ */
+export const publicClient = createPublicClient({
+  chain: aevum,
+  batch: { multicall: { wait: 16 } },
+  transport: http(RPC_URL, { timeout: 20_000, retryCount: 3, retryDelay: 300 }),
+}) as PublicClient;

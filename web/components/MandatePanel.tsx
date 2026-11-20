@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { formatUsd, revokeMandate, type AuditEntry, type Mandate, type Pending, type VaultState, type WindowState } from "@warrant/sdk";
@@ -43,10 +43,17 @@ function Meter({ label, spent, cap, note }: { label: string; spent: bigint; cap:
   );
 }
 
-function MandateCard({ m, vault, frozen, merchants, merchantsLoading, revoke, canAct, win }: { m: Mandate; vault: Address; frozen: boolean; merchants: ReturnType<typeof merchantsFor>; merchantsLoading: boolean; revoke?: AuditEntry; canAct: boolean; win?: WindowState }) {
+function MandateCard({ m, vault, vaultName, frozen, merchants, merchantsLoading, auditBusy, revoke, canAct, win }: { m: Mandate; vault: Address; vaultName: string; frozen: boolean; merchants: ReturnType<typeof merchantsFor>; merchantsLoading: boolean; auditBusy: boolean; revoke?: AuditEntry; canAct: boolean; win?: WindowState }) {
   const { clients } = useClients();
   const { run, busy } = useTx();
   const qc = useQueryClient();
+  // the revoke event reaches the log a few seconds after the transaction: wait for it with a skeleton, not a message
+  const [grace, setGrace] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setGrace(false), 30_000);
+    return () => clearTimeout(t);
+  }, []);
+  const revokeWaiting = !revoke && (auditBusy || grace);
   const [confirming, setConfirming] = useState(false);
   const now = Math.floor(Date.now() / 1000);
   const p = m.params;
@@ -65,7 +72,7 @@ function MandateCard({ m, vault, frozen, merchants, merchantsLoading, revoke, ca
     <article className="mandate" aria-label={`Mandate ${m.id}`}>
       <div className="m-top">
         <div className="m-title">
-          <strong>Mandate #{m.id.toString()}</strong>
+          <strong>Mandate #{m.id.toString()} <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>in {vaultName} · {short(vault)}</span></strong>
           <span>
             Agent{" "}
             <a className="mono" href={addrLink(p.agent)} target="_blank" rel="noreferrer">
@@ -106,7 +113,7 @@ function MandateCard({ m, vault, frozen, merchants, merchantsLoading, revoke, ca
                   <a className="mono muted" href={txLink(revoke.txHash)} target="_blank" rel="noreferrer">{revoke.txHash.slice(0, 8)}… ↗</a>
                 </>
               ) : (
-                <span className="muted">time still loading</span>
+                revokeWaiting ? <div className="skel" style={{ width: 120, height: 16 }} aria-label="Loading revoke time" /> : <span className="muted">time not found in the logs</span>
               )}
             </dd>
           </div>
@@ -144,7 +151,7 @@ function MandateCard({ m, vault, frozen, merchants, merchantsLoading, revoke, ca
                 className="btn stop"
                 disabled={busy || !clients}
                 onClick={async () => {
-                  const r = await run(`Revoke mandate #${m.id}`, () => revokeMandate(clients!, vault, m.id), {
+                  const r = await run(`Revoke mandate #${m.id} in ${vaultName}`, () => revokeMandate(clients!, vault, m.id), {
                     onSuccess: () => qc.setQueryData(["vault", vault], (d: Data) => d && { ...d, mandates: d.mandates.map((x) => (x.id === m.id ? { ...x, revoked: true } : x)) }),
                   });
                   if (r) setConfirming(false);
@@ -166,7 +173,7 @@ function MandateCard({ m, vault, frozen, merchants, merchantsLoading, revoke, ca
   );
 }
 
-export function MandatePanel({ vault, data, audit, auditLoading, loading, onNew }: { vault: Address; data: Data; audit?: AuditEntry[]; auditLoading: boolean; loading: boolean; onNew: () => void }) {
+export function MandatePanel({ vault, vaultName, data, audit, auditLoading, loading, onNew }: { vault: Address; vaultName: string; data: Data; audit?: AuditEntry[]; auditLoading: boolean; loading: boolean; onNew: () => void }) {
   const { ready } = useClients();
   const ordered = useMemo(() => [...(data?.mandates ?? [])].reverse(), [data?.mandates]);
   const hasFunds = (data?.state.balance ?? 0n) > 0n;
@@ -198,7 +205,7 @@ export function MandatePanel({ vault, data, audit, auditLoading, loading, onNew 
         </div>
       ) : (
         ordered.map((m) => (
-          <MandateCard key={m.id.toString()} m={m} vault={vault} frozen={!!data?.state.frozen} merchants={merchantsFor(audit, m.id)} merchantsLoading={audit === undefined || (merchantsFor(audit, m.id).length === 0 && (auditLoading || Date.now() / 1000 - Number(m.params.validAfter) < 45))} revoke={revokedAt(audit, m.id)} canAct={ready} win={data?.windows.get(m.id.toString())} />
+          <MandateCard key={m.id.toString()} m={m} vault={vault} vaultName={vaultName} frozen={!!data?.state.frozen} merchants={merchantsFor(audit, m.id)} auditBusy={audit === undefined || auditLoading} merchantsLoading={audit === undefined || (merchantsFor(audit, m.id).length === 0 && (auditLoading || Date.now() / 1000 - Number(m.params.validAfter) < 45))} revoke={revokedAt(audit, m.id)} canAct={ready} win={data?.windows.get(m.id.toString())} />
         ))
       )}
     </section>

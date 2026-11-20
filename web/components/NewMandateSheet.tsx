@@ -14,9 +14,10 @@ import {
   type MandateTemplate,
 } from "@warrant/sdk";
 import { CHAIN_ID, REGISTRY } from "@/lib/config";
-import { cleanAmount } from "@/lib/format";
+import { cleanAmount, short } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
 import { useTx } from "@/lib/tx";
+import { useVault } from "@/lib/queries";
 
 const toStr = (t: MandateTemplate) => ({
   perTx: t.perTx,
@@ -31,9 +32,10 @@ const toStr = (t: MandateTemplate) => ({
 const num = (s: string) => (s === "" || s === "." ? 0n : parseUsd(s));
 const int = (s: string) => (/^\d+(\.\d+)?$/.test(s) ? Number(s) : NaN);
 
-export function NewMandateSheet({ vault, onClose, registerAgent: presetRegister = false }: { vault: Address; onClose: () => void; registerAgent?: boolean }) {
+export function NewMandateSheet({ vault, vaultName, onClose, registerAgent: presetRegister = false }: { vault: Address; vaultName: string; onClose: () => void; registerAgent?: boolean }) {
   const { clients, ready } = useClients();
   const { run, busy } = useTx();
+  const held = useVault(vault).data?.state.balance;
   const [tpl, setTpl] = useState<string>(MANDATE_TEMPLATES[0]!.id);
   const [f, setF] = useState(toStr(MANDATE_TEMPLATES[0]!));
   // opened from "Register agent": start with a fresh key and registration switched on
@@ -101,7 +103,7 @@ export function NewMandateSheet({ vault, onClose, registerAgent: presetRegister 
   async function submit() {
     if (!clients || !valid) return;
     const agentAddr = getAddress(agent);
-    const res = await run("Issue mandate", async () => {
+    const res = await run(`Issue mandate in ${vaultName}`, async () => {
       let agentId = 0n;
       if (genKey && register && privateKeyToAccount(genKey).address === agentAddr) {
         const reg = await registerAgent({ clients, registry: REGISTRY, agentURI: `warrant:agent:${agentAddr.toLowerCase()}` });
@@ -126,7 +128,10 @@ export function NewMandateSheet({ vault, onClose, registerAgent: presetRegister 
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <aside className="sheet" role="dialog" aria-modal="true" aria-labelledby="nm-h">
         <div className="row">
-          <h2 id="nm-h">New mandate</h2>
+          <div>
+            <h2 id="nm-h">New mandate</h2>
+            <div className="hint">in {vaultName} · {short(vault)}</div>
+          </div>
           <button className="btn quiet sm sheet-x" onClick={onClose} disabled={busy}>Close</button>
         </div>
 
@@ -203,13 +208,26 @@ export function NewMandateSheet({ vault, onClose, registerAgent: presetRegister 
           {num(f.threshold) > 0n && <Plain label="Time I have to decide" suffix="hours" v={f.windowHours} onChange={set("windowHours")} err={errors.windowHours} />}
         </div>
 
-        <div className="row" style={{ borderTop: "1px solid var(--line)", paddingTop: 18 }}>
-          <button className="btn" disabled={!ready || !valid || busy} onClick={submit}>
-            {busy ? "Working…" : "Issue mandate"}
-          </button>
-          <span className="hint">
-            {valid ? `Up to ${formatUsd(num(f.total))} tUSD8 can leave the vault under this mandate.` : `Can't issue yet: ${Object.values(errors)[0]}`}
-          </span>
+        <div className="stack" style={{ borderTop: "1px solid var(--line)", paddingTop: 18, gap: 12 }}>
+          {valid && held !== undefined && (num(f.total) > held || num(f.perTx) > held) && (
+            <p className="note" role="status">
+              {held === 0n
+                ? "This vault is empty. The mandate can still be issued, but every payment fails until you deposit."
+                : num(f.perTx) > held
+                  ? `A single payment of up to ${formatUsd(num(f.perTx))} is allowed here, but the vault holds only ${formatUsd(held)}. Larger payments fail until you deposit more.`
+                  : `The lifetime limit (${formatUsd(num(f.total))}) is above what the vault holds (${formatUsd(held)}). That is allowed: the vault's balance is the real ceiling until you deposit more.`}
+            </p>
+          )}
+          <div className="row">
+            <button className="btn" disabled={!ready || !valid || busy} onClick={submit}>
+              {busy ? "Working…" : "Issue mandate"}
+            </button>
+            <span className="hint">
+              {valid
+                ? `Up to ${formatUsd(num(f.total))} tUSD8 can leave the vault under this mandate${held !== undefined ? `; the vault holds ${formatUsd(held)} now` : ""}.`
+                : `Can't issue yet: ${Object.values(errors)[0]}`}
+            </span>
+          </div>
         </div>
       </aside>
     </div>
