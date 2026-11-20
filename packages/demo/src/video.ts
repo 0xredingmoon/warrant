@@ -99,11 +99,14 @@ if (!live) {
 
 /* ------------------------------------------------------------------ wallet bridge: signs in Node */
 const CHAIN_HEX = "0x" + chainId.toString(16);
+let granted = false; // like a real wallet: eth_accounts stays empty until the site has been approved
 async function wallet(method: string, params: any[] = []) {
   switch (method) {
     case "eth_requestAccounts":
-    case "eth_accounts":
+      granted = true;
       return [owner.address];
+    case "eth_accounts":
+      return granted ? [owner.address] : [];
     case "eth_chainId":
       return CHAIN_HEX;
     case "net_version":
@@ -419,6 +422,7 @@ try {
   await caption(dash, "04 · The mandate", "The owner writes the rules once: who the agent may pay, how much, how often, and when to ask first.", 5200);
   await uncaption(dash);
   await clickText("button", "Generate a new agent key");
+  await dash.evaluate(() => (document.querySelector(".key-box input[type=checkbox]") as HTMLInputElement).click()); // registry is off by default; this demo registers the agent
   await clickText("button", "Reveal");
   await dash.waitForFunction(() => /^0x[0-9a-f]{64}$/.test(document.querySelector(".key-box code")?.textContent ?? ""), { timeout: 15000 });
   const agentKey = (await dash.evaluate(() => document.querySelector(".key-box code")?.textContent)) as Hex;

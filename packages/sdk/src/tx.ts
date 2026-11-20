@@ -114,11 +114,14 @@ export async function writeLegacy(
     functionName: call.functionName,
     args: call.args,
   } as any);
+  // No fixed limit given: estimate it and leave 50% headroom. A node's estimate can come in below what the transaction
+  // needs (the second createMandate on a local fork ran out of gas at the estimate), and unused gas is not charged.
+  const gas = call.gas ?? ((await publicClient.estimateContractGas({ account, address: call.address, abi: call.abi, functionName: call.functionName, args: call.args } as any)) * 3n) / 2n;
   const hash = await walletClient.writeContract({
     ...(sim.request as any),
     type: "legacy",
     gasPrice,
-    gas: call.gas,
+    gas,
     chain: walletClient.chain,
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });

@@ -68,7 +68,8 @@ const setField = async (label, value) => {
   const h = await page.evaluateHandle((l) => [...document.querySelectorAll(".sheet label.field")].find((el) => el.querySelector("span")?.textContent.startsWith(l))?.querySelector("input"), label);
   const el = h.asElement();
   if (!el) throw new Error(`no field "${label}"`);
-  await el.click({ clickCount: 3 });
+  await el.focus();
+  await el.evaluate((i) => i.select());
   await el.type(value);
 };
 
@@ -111,6 +112,8 @@ try {
   await shot("04-new-mandate-sheet");
   check((await bodyText()).includes("5.00 tUSD8 per payment · 20.00 per day · 100.00 over 7 days"), "template chips carry units and the lifetime window");
   check(await page.evaluate(() => { const s = document.querySelector(".sheet"); return s.scrollWidth <= s.clientWidth; }), "no horizontal scrollbar in the drawer");
+  const spill = await page.evaluate(() => { const s = document.querySelector(".sheet"); const lim = s.getBoundingClientRect().right - parseFloat(getComputedStyle(s).paddingRight) + 0.5; return [...s.querySelectorAll(".field, .tpl, .affix, .input")].filter((el) => el.getBoundingClientRect().right > lim).map((el) => el.className + ":" + Math.round(el.getBoundingClientRect().right - lim)); });
+  check(spill.length === 0, `nothing in the drawer pokes past its padding ${spill.slice(0, 4).join(" ")}`);
   await clickText("button", "Generate a new agent key");
   check(await page.evaluate(() => document.querySelector(".key-box input[type=checkbox]")?.checked === false), "registry registration is off by default");
   await page.evaluate(() => document.querySelector(".key-box input[type=checkbox]").click());
@@ -121,11 +124,11 @@ try {
   await page.type("textarea", merchant);
   // lowering the per-payment limit below the approval threshold pulls the threshold down with a visible note
   await setField("Per payment", "2");
-  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press("Tab");
   await page.waitForFunction(() => document.querySelector(".sheet .note")?.textContent.includes("Approval threshold lowered to 2.00"), { timeout: 3000 }).then(() => check(true, "threshold follows a lowered per-payment limit, with a note"), () => check(false, "threshold follows a lowered per-payment limit, with a note"));
   await setField("Per payment", "5");
   await setField("Ask me from", "3");
-  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press("Tab");
   await shot("05-new-mandate-filled");
   await clickText("button", "Issue mandate");
   await waitText("Mandate #1", 90000);
@@ -142,7 +145,7 @@ try {
   const p2 = await agent.pay({ merchant, amount: "3.50", context: "smoke: above threshold" });
   if (p2.status !== "queued") throw new Error(`expected queued, got ${p2.status}: ${p2.message}`);
   const evil = await agent.pay({ merchant: "0x" + "ee".repeat(20), amount: "0.10" });
-  if (evil.status !== "rejected") throw new Error("unlisted merchant was not rejected");
+  if (evil.status !== "refused") throw new Error(`unlisted merchant was not rejected: ${JSON.stringify(evil, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`);
   log("executed, queued, rejected:", evil.check.message);
   await waitText("3.50", 30000);
   await waitText("Decide in", 30000);
@@ -165,7 +168,7 @@ try {
   await clickText("button", "Freeze");
   await waitText("Frozen", 45000);
   const blocked = await agent.pay({ merchant, amount: "0.10" });
-  if (blocked.status !== "rejected") throw new Error("payment went through a frozen vault");
+  if (blocked.status !== "refused") throw new Error("payment went through a frozen vault");
   log("frozen vault refused:", blocked.check.message);
   await shot("09-frozen");
   await clickText("button", "Unfreeze vault");
@@ -178,11 +181,12 @@ try {
   await clickText("button", "Revoke now");
   await waitText("Revoked", 45000);
   const after = await agent.pay({ merchant, amount: "0.10" });
-  if (after.status !== "rejected") throw new Error("payment went through a revoked mandate");
+  if (after.status !== "refused") throw new Error("payment went through a revoked mandate");
   log("revoked mandate refused:", after.check.message);
   await shot("10-revoked");
+  await page.waitForFunction(() => /revoked\n[^\n]*(\d:\d\d)/i.test(document.querySelector(".mandate")?.innerText ?? ""), { timeout: 30000 }).catch(() => {});
   const card = await page.evaluate(() => { const c = document.querySelector(".mandate"); return { text: c?.innerText ?? "", muted: !!c?.querySelector(".meters.muted") }; });
-  check(/Revoked\n[^\n]*(\d:\d\d|block \d)/.test(card.text) && !/Expires/.test(card.text), "revoked mandate shows when it was revoked, not an expiry");
+  check(/revoked\n[^\n]*(\d:\d\d|block \d)/i.test(card.text) && !/expires/i.test(card.text), "revoked mandate shows when it was revoked, not an expiry");
   check(card.muted, "revoked mandate's bars are muted");
 
   step("second mandate, registry left off, then Register agent");
@@ -222,5 +226,5 @@ try {
 const real = errors.filter((e) => !/favicon|Failed to load resource/.test(e));
 if (real.length) { console.log("\nbrowser errors:"); real.slice(0, 8).forEach((e) => console.log("  -", e.slice(0, 300))); }
 await browser.close();
-await rpc("evm_revert", [snapshot]);
+if (!process.env.KEEP) await rpc("evm_revert", [snapshot]);
 console.log(process.exitCode ? "\nSMOKE FAILED" : `\nSMOKE OK (screenshots in ${OUT})`);

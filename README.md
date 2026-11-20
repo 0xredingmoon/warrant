@@ -201,6 +201,10 @@ RPC in 1,000-block chunks as the fallback.
 
 `web/e2e/smoke.mjs` drives the whole UI in headless Chrome against the local fork with a mock wallet (create vault,
 gasless deposit, mandate with registration, queued payment, approval, freeze, revoke, withdraw) and saves screenshots.
+`web/e2e/wallet-states.mjs` covers the wallet edge cases against a running dashboard without sending anything: wrong network
+and declined switch, the wallet changing network or losing access while the page is open, a rejected transaction, and the
+connect prompt. The dashboard talks to the wallet through its own small EIP-1193 layer (`web/lib/wallet.tsx`) rather than a
+connector library, so it follows `chainChanged` and `accountsChanged` for any chain, listed or not.
 
 ## x402
 
@@ -282,9 +286,9 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
 | Suite | Count | What it covers |
 | --- | --- | --- |
 | Foundry | 162 | Every reason code and cap edge, the rolling window across bucket boundaries, `payOrRefuse` and `PaymentRefused`, signature binding, approval queue, funding (incl. reentrancy), factory and registry, fuzzing and invariants, Shanghai opcode scan, deploy script, fork tests on the real tUSD8 |
-| vitest | 56 | store (3), sdk (20), mcp (4), merchant (12), relayer (17): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), merchant 402 and x402 flows, MCP tools over an in-memory transport |
+| vitest | 58 | store (3), sdk (22), mcp (4), merchant (12), relayer (17): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), merchant 402 and x402 flows, MCP tools over an in-memory transport |
 | Scenario | 1 | `pnpm demo:fork` and `pnpm demo:aevum` assert every step's outcome |
-| UI | 2 | `web/e2e/smoke.mjs` drives the dashboard on the fork with a mock wallet; `web/e2e/live-readonly.mjs` reads a live vault |
+| UI | 3 | `web/e2e/smoke.mjs` drives the dashboard on the fork with a mock wallet; `web/e2e/wallet-states.mjs` covers wallet edge cases; `web/e2e/live-readonly.mjs` reads a live vault |
 
 ## Known limitations
 

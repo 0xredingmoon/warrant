@@ -56,7 +56,7 @@ h1, h2, h3, p { margin: 0; }
 .btn.sm { padding: 5px 10px; font-size: 13px; }
 .link { background: none; border: 0; padding: 0; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
 .link:hover { text-decoration-color: var(--ink); }
-.field { display: grid; gap: 6px; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .field > span, .label { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
 .input { width: 100%; border: 1px solid var(--line-strong); background: var(--card); border-radius: var(--radius); padding: 9px 11px; min-height: 40px; }
 .input:focus { outline: 2px solid var(--ok); outline-offset: 0; border-color: var(--ok); }
@@ -65,7 +65,7 @@ h1, h2, h3, p { margin: 0; }
 .err { font-size: 13px; color: var(--stop); }
 .affix { display: flex; align-items: center; border: 1px solid var(--line-strong); background: var(--card); border-radius: var(--radius); }
 .affix:focus-within { outline: 2px solid var(--ok); border-color: var(--ok); }
-.affix input { border: 0; background: transparent; padding: 9px 11px; min-height: 38px; flex: 1; min-width: 0; outline: none; }
+.affix input { width: 100%; border: 0; background: transparent; padding: 9px 11px; min-height: 38px; flex: 1; min-width: 0; outline: none; }
 .affix em { font-style: normal; padding-right: 11px; color: var(--ink-3); font-size: 13px; }
 
 /* ---------- panels ---------- */
@@ -156,7 +156,7 @@ select.input { padding-right: 28px; }
 .tpl strong { font-size: 14px; }
 .tpl span { overflow-wrap: anywhere; font-size: 12.5px; color: var(--ink-2); line-height: 1.4; }
 .tpl .num { font-size: 12px; color: var(--ink-3); }
-.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.form-grid { align-items: start; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .form-grid .wide { grid-column: 1 / -1; }
 .key-box { background: var(--card); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: 12px; display: grid; gap: 8px; font-size: 13px; }
 .key-box code { word-break: break-all; font-family: var(--mono); font-size: 12px; background: var(--sunk); padding: 6px 8px; border-radius: 4px; }
