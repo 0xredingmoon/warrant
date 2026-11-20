@@ -264,21 +264,24 @@ async function typeInto(selector: string, value: string, index = 0, replace = tr
   const els = await dash.$$(selector);
   const el = els[index];
   await el.evaluate((e) => e.scrollIntoView({ block: "center", behavior: "instant" }));
+  await sleep(350);
   const b = await el.boundingBox();
   await moveTo(dash, b.x + 24, b.y + b.height / 2);
-  if (replace) await dash.mouse.click(b.x + 24, b.y + b.height / 2, { clickCount: 3 });
-  else await dash.mouse.click(b.x + 24, b.y + b.height / 2);
-  await dash.keyboard.type(value, { delay: FAST ? 12 : 45 });
-  await sleep(150);
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const got = await el.evaluate((e) => e.value);
-    if (got === value || (!replace && got.endsWith(value))) return;
-    console.log(`  (field ${selector}[${index}] holds "${got}", retyping)`);
-    await dash.mouse.click(b.x + 24, b.y + b.height / 2, { clickCount: 3 });
+  await dash.mouse.click(b.x + 24, b.y + b.height / 2);
+  await el.focus(); // clicks can land a pixel off while the sheet settles; the keyboard must go to this field
+  if (replace) {
+    await dash.keyboard.down("Control");
+    await dash.keyboard.press("KeyA");
+    await dash.keyboard.up("Control");
     await dash.keyboard.press("Backspace");
-    await dash.keyboard.type(value, { delay: 60 });
-    await sleep(150);
   }
+  for (const ch of value) {
+    await dash.keyboard.type(ch);
+    await sleep(FAST ? 25 : 55);
+  }
+  await sleep(200);
+  const got = await el.evaluate((e) => e.value);
+  if (replace ? got !== value : !got.endsWith(value)) throw new Error(`field ${selector}[${index}] holds "${got}", wanted "${value}"`);
 }
 const waitText = (text: string, timeout = 60000) => dash.waitForFunction((t) => document.body.textContent.includes(t), { timeout }, text);
 const scrollTop = () => dash.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
@@ -574,7 +577,7 @@ notes.server.close();
 const end = Date.now();
 const list: string[] = [];
 frames.forEach((f, i) => {
-  const dur = Math.max(0.04, ((frames[i + 1]?.t ?? end) - f.t) / 1000);
+  const dur = Math.max(0.01, ((frames[i + 1]?.t ?? end) - f.t) / 1000);
   list.push(`file '${f.file}'`, `duration ${dur.toFixed(3)}`);
 });
 list.push(`file '${frames.at(-1).file}'`);
