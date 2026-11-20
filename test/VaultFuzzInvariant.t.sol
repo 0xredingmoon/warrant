@@ -100,8 +100,12 @@ contract Handler is Base {
     uint256 public ghostPaid;
     uint256 public ghostPaidA;
     uint256 public counter;
-    uint256 public lastPeriodIndex = type(uint256).max;
-    uint256 public ghostPeriodPaid;
+    uint256[] public payTimes;
+    uint256[] public payAmounts;
+
+    function payCount() external view returns (uint256) {
+        return payTimes.length;
+    }
 
     function init() external {
         super.setUp();
@@ -136,11 +140,13 @@ contract Handler is Base {
         try vault.pay(i, sig) {
             ghostPaid += amount;
             if (!toB) ghostPaidA += amount;
+            payTimes.push(block.timestamp);
+            payAmounts.push(amount);
         } catch {}
     }
 
     function warp(uint256 secs) external {
-        vm.warp(block.timestamp + bound(secs, 0, 2 days));
+        vm.warp(block.timestamp + bound(secs, 0, 14 hours));
     }
 
     function freezeToggle(bool f) external {
@@ -176,9 +182,24 @@ contract VaultInvariantTest is StdInvariant, Base {
         assertLe(m.spentTotal, m.params.totalCap);
     }
 
-    function invariant_windowSpendNeverAbovePeriodCap() public view {
-        IWarrantVault.Mandate memory m = h.v().getMandate(1);
-        assertLe(m.periodSpent, m.params.periodCap);
+    /// @dev The rolling bound: for every payment, the spend in the `periodLength` ending at it (inclusive,
+    ///      exclusive of the start) never exceeds periodCap. Fixed windows would fail this at window edges.
+    function invariant_anyRollingPeriodStaysUnderPeriodCap() public view {
+        IWarrantVault.MandateParams memory p = h.v().getMandate(1).params;
+        uint256 n = h.payCount();
+        for (uint256 j; j < n; ++j) {
+            uint256 end = h.payTimes(j);
+            uint256 sum;
+            for (uint256 k; k <= j; ++k) {
+                uint256 t = h.payTimes(k);
+                if (t + p.periodLength > end) sum += h.payAmounts(k);
+            }
+            assertLe(sum, p.periodCap);
+        }
+    }
+
+    function invariant_windowCounterNeverAbovePeriodCap() public view {
+        assertLe(h.v().periodSpent(1), 20 * USD);
     }
 
     function invariant_merchantBCapsHold() public view {

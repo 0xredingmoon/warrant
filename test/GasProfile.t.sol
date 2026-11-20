@@ -41,7 +41,7 @@ contract GasProfileTest is Base {
         vault.pay(i, sig);
         g -= gasleft();
         console.log("WarrantVault.pay (first payment, cold):    ", g);
-        assertLt(g, 260_000);
+        assertLt(g, 280_000);
 
         i = _intent(id, merchantA, 1 * USD, _ref(2));
         sig = _sign(agentKey, i);
@@ -50,7 +50,7 @@ contract GasProfileTest is Base {
         vault.pay(i, sig);
         g -= gasleft();
         console.log("WarrantVault.pay (warm):                   ", g);
-        assertLt(g, 160_000);
+        assertLt(g, 190_000);
 
         g = gasleft();
         vault.check(i, sig);

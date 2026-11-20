@@ -32,7 +32,7 @@ contract VaultPaymentsTest is Base {
         assertEq(uint8(vault.invoiceState(merchantA, _ref(1))), uint8(IWarrantVault.InvoiceState.Paid));
         IWarrantVault.Mandate memory m = vault.getMandate(id);
         assertEq(m.spentTotal, 3 * USD);
-        assertEq(m.periodSpent, 3 * USD);
+        assertEq(vault.periodSpent(id), 3 * USD);
         assertEq(vault.merchantSpent(id, merchantA), 3 * USD);
         assertTrue(vault.nonceUsed(id, i.nonce));
     }
@@ -65,7 +65,7 @@ contract VaultPaymentsTest is Base {
         assertEq(token.balanceOf(merchantA), 0);
     }
 
-    function test_pay_rejectsAbovePeriodCap_thenResetsNextWindow() public {
+    function test_pay_rejectsAbovePeriodCap_thenFreesOnceWindowRolls() public {
         for (uint256 n = 1; n <= 4; ++n) {
             _payOk(id, merchantA, 5 * USD, _ref(n));
         }
@@ -74,25 +74,27 @@ contract VaultPaymentsTest is Base {
         _expectReject(IWarrantVault.Reason.ExceedsPeriodCap);
         vault.pay(i, sig);
 
-        vm.warp(T0 + 1 days); // window 1 begins
-        i = _intent(id, merchantA, 5 * USD, _ref(6));
+        vm.warp(T0 + 1 days - 1); // still inside the trailing day
+        assertEq(uint8(vault.checkTerms(id, merchantA, 1, _ref(6))), uint8(IWarrantVault.Reason.ExceedsPeriodCap));
+
+        vm.warp(T0 + 1 days + 3 hours); // one bucket (1/8 day) later everything has rolled out
+        assertEq(vault.periodSpent(id), 0);
         assertEq(uint8(vault.checkTerms(id, merchantA, 5 * USD, _ref(6))), uint8(IWarrantVault.Reason.Ok));
         _payOk(id, merchantA, 5 * USD, _ref(6));
-        assertEq(vault.getMandate(id).periodSpent, 5 * USD);
-        assertEq(vault.getMandate(id).periodIndex, 1);
+        assertEq(vault.periodSpent(id), 5 * USD);
         assertEq(vault.getMandate(id).spentTotal, 25 * USD);
     }
 
     function test_pay_rejectsAboveTotalCap() public {
         // 5 windows x 20 = 100 = totalCap
         for (uint256 w; w < 5; ++w) {
-            vm.warp(T0 + w * 1 days);
+            vm.warp(T0 + w * (1 days + 3 hours));
             for (uint256 n; n < 4; ++n) {
                 _payOk(id, merchantA, 5 * USD, _ref(w * 10 + n + 1));
             }
         }
         assertEq(vault.getMandate(id).spentTotal, 100 * USD);
-        vm.warp(T0 + 5 days);
+        vm.warp(T0 + 5 * (1 days + 3 hours)); // window rolled: only the lifetime cap is left
         IWarrantVault.PaymentIntent memory i = _intent(id, merchantA, 1, _ref(999));
         bytes memory sig = _sign(agentKey, i);
         _expectReject(IWarrantVault.Reason.ExceedsTotalCap);

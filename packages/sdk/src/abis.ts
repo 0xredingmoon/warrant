@@ -55,6 +55,19 @@ export const warrantVaultAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_LOGGED_REFUSALS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_MANDATE_LIFETIME",
     "inputs": [],
     "outputs": [
@@ -336,6 +349,19 @@ export const warrantVaultAbi = [
   },
   {
     "type": "function",
+    "name": "createdAtBlock",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "deposit",
     "inputs": [
       {
@@ -599,16 +625,6 @@ export const warrantVaultAbi = [
             "name": "spentTotal",
             "type": "uint128",
             "internalType": "uint128"
-          },
-          {
-            "name": "periodSpent",
-            "type": "uint128",
-            "internalType": "uint128"
-          },
-          {
-            "name": "periodIndex",
-            "type": "uint64",
-            "internalType": "uint64"
           },
           {
             "name": "revoked",
@@ -896,6 +912,30 @@ export const warrantVaultAbi = [
   },
   {
     "type": "function",
+    "name": "nextRelease",
+    "inputs": [
+      {
+        "name": "mandateId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "releaseAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "nonceUsed",
     "inputs": [
       {
@@ -999,8 +1039,112 @@ export const warrantVaultAbi = [
   },
   {
     "type": "function",
+    "name": "payOrRefuse",
+    "inputs": [
+      {
+        "name": "intent",
+        "type": "tuple",
+        "internalType": "struct IWarrantVault.PaymentIntent",
+        "components": [
+          {
+            "name": "mandateId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "merchant",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "invoiceRef",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "intentHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "nonce",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "agentSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "reason",
+        "type": "uint8",
+        "internalType": "enum IWarrantVault.Reason"
+      },
+      {
+        "name": "pendingId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "pendingCount",
     "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "periodSpent",
+    "inputs": [
+      {
+        "name": "mandateId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "refusalCount",
+    "inputs": [
+      {
+        "name": "mandateId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -1495,6 +1639,55 @@ export const warrantVaultAbi = [
   },
   {
     "type": "event",
+    "name": "PaymentRefused",
+    "inputs": [
+      {
+        "name": "mandateId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "merchant",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "reason",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum IWarrantVault.Reason"
+      },
+      {
+        "name": "invoiceRef",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "intentHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "PendingApproved",
     "inputs": [
       {
@@ -1677,6 +1870,11 @@ export const warrantVaultAbi = [
   {
     "type": "error",
     "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RefusalLogFull",
     "inputs": []
   },
   {

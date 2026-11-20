@@ -23,8 +23,12 @@ import {IWarrantVault} from "./interfaces/IWarrantVault.sol";
 ///      - agent: can only sign `PaymentIntent`s that satisfy every cap of its mandate. It has no gas and
 ///        no direct access to funds; anyone (a relayer, the merchant) may submit its signed intent.
 ///      - merchant: receives `amount - fee`. The protocol fee (capped in the factory) is charged to the merchant.
-///      Spend windows are fixed windows starting at `validAfter` (a burst across a window edge can spend up
-///      to 2x `periodCap` within one `periodLength`; `totalCap` and `perTxCap` still bound it).
+///      Spend window: `periodCap` bounds what is spent within ANY rolling `periodLength` seconds. Spending is
+///      booked into 8 time buckets (ring of 9 slots); a payment is checked against every bucket that overlaps
+///      the trailing window, so a spend counts for at least `periodLength` and at most `periodLength` plus one
+///      bucket (`ceil(periodLength / 8)`) seconds. Proof sketch: take any window (a, a+L] and its last payment at
+///      time t. At t the check counted every bucket overlapping (t-L, t], which contains every payment of the
+///      window, and required the sum (including this payment) to stay <= periodCap.
 ///      Expiry is exclusive (`block.timestamp >= expiry` is expired).
 contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -41,7 +45,10 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
 
     uint256 public constant MAX_MANDATE_LIFETIME = 365 days;
     uint256 public constant MAX_MERCHANTS_PER_CALL = 32;
+    uint256 public constant MAX_LOGGED_REFUSALS = 1_000;
     uint256 internal constant BPS = 10_000;
+    uint256 internal constant WINDOW_BUCKETS = 8;
+    uint256 internal constant WINDOW_SLOTS = WINDOW_BUCKETS + 1;
 
     /*//////////////////////////////////////////////////////////////
                                IMMUTABLES
@@ -51,6 +58,8 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
     address public immutable owner;
     address public immutable factory;
     IAgentRegistry public immutable registry; // may be address(0): identity binding disabled
+    /// @notice Block this vault was created in: where an audit log read can start.
+    uint256 public immutable createdAtBlock;
 
     /*//////////////////////////////////////////////////////////////
                                 STORAGE
@@ -62,7 +71,15 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
     uint256 public mandateCount;
     uint256 public pendingCount;
 
+    struct Bucket {
+        uint128 amount; // spent in time bucket `index`
+        uint64 index; // floor(timestamp / bucketSize)
+    }
+
     mapping(uint256 mandateId => Mandate) internal _mandates;
+    mapping(uint256 mandateId => Bucket[WINDOW_SLOTS]) internal _window;
+    /// @notice Refusals logged on-chain for a mandate (bounded by `MAX_LOGGED_REFUSALS`).
+    mapping(uint256 mandateId => uint256) public refusalCount;
     mapping(uint256 mandateId => mapping(address merchant => MerchantRule)) internal _rules;
     mapping(uint256 mandateId => mapping(address merchant => uint128)) public merchantSpent;
     mapping(uint256 mandateId => mapping(bytes32 nonce => bool)) public nonceUsed;
@@ -100,6 +117,7 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         guardian = guardian_;
         registry = registry_;
         factory = msg.sender;
+        createdAtBlock = block.number;
         emit GuardianSet(guardian_);
     }
 
@@ -266,6 +284,47 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         }
     }
 
+    /// @notice Like `pay`, but a payment the mandate's rules refuse is *recorded* instead of reverted: the call
+    ///         succeeds, no funds move and `PaymentRefused` is emitted, so the refusal is visible on the explorer.
+    /// @dev Griefing safety: the intent must carry the mandate agent's valid signature, be unexpired and unused
+    ///      (otherwise it reverts like `pay`, logging nothing), so only the agent can cause an event. The nonce is
+    ///      consumed, so one signed intent logs at most once. Per mandate at most `MAX_LOGGED_REFUSALS` are logged;
+    ///      after that refusals revert as in `pay`.
+    function payOrRefuse(PaymentIntent calldata intent, bytes calldata agentSignature)
+        external
+        nonReentrant
+        returns (Reason reason, uint256 pendingId)
+    {
+        Mandate storage m = _mandates[intent.mandateId];
+        if (m.params.agent == address(0)) revert PaymentRejected(Reason.MandateNotFound);
+        if (block.timestamp > intent.deadline) revert PaymentRejected(Reason.IntentExpired);
+        if (nonceUsed[intent.mandateId][intent.nonce]) revert PaymentRejected(Reason.NonceUsed);
+        if (!SignatureChecker.isValidSignatureNow(m.params.agent, hashIntent(intent), agentSignature)) {
+            revert PaymentRejected(Reason.BadSignature);
+        }
+        reason = _checkTerms(intent.mandateId, intent.merchant, intent.amount, intent.invoiceRef, false);
+        nonceUsed[intent.mandateId][intent.nonce] = true;
+
+        if (reason == Reason.Ok) {
+            _execute(intent.mandateId, intent.merchant, intent.amount, intent.invoiceRef, intent.intentHash);
+        } else if (reason == Reason.ApprovalRequired) {
+            pendingId = _queue(intent);
+        } else {
+            uint256 n = refusalCount[intent.mandateId];
+            if (n >= MAX_LOGGED_REFUSALS) revert RefusalLogFull();
+            refusalCount[intent.mandateId] = n + 1;
+            emit PaymentRefused(
+                intent.mandateId,
+                m.params.agent,
+                intent.merchant,
+                intent.amount,
+                reason,
+                intent.invoiceRef,
+                intent.intentHash
+            );
+        }
+    }
+
     /// @notice Owner approves a queued payment (the co-sign). It is re-validated against the mandate now.
     function approve(uint256 pendingId) external onlyOwner nonReentrant {
         _approve(pendingId, msg.sender);
@@ -356,9 +415,31 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         ) return 0;
         amount = m.params.perTxCap;
         if (r.perTxCap != 0) amount = _min(amount, r.perTxCap);
-        amount = _min(amount, m.params.periodCap - _periodSpent(m));
+        amount = _min(amount, m.params.periodCap - _windowSpent(mandateId));
         amount = _min(amount, m.params.totalCap - m.spentTotal);
         if (r.totalCap != 0) amount = _min(amount, r.totalCap - merchantSpent[mandateId][merchant]);
+    }
+
+    /// @notice Spent within the trailing `periodLength` (bucket-conservative, see the contract notes).
+    function periodSpent(uint256 mandateId) external view returns (uint256) {
+        return _windowSpent(mandateId);
+    }
+
+    /// @notice When part of the window frees up: the oldest counted bucket's amount and the time it stops counting.
+    function nextRelease(uint256 mandateId) external view returns (uint256 amount, uint256 releaseAt) {
+        Mandate storage m = _mandates[mandateId];
+        uint256 size = _bucketSize(m.params.periodLength);
+        (uint256 lo, uint256 cur) = _windowRange(m.params.periodLength, size);
+        Bucket[WINDOW_SLOTS] storage w = _window[mandateId];
+        uint256 best = type(uint256).max;
+        for (uint256 i; i < WINDOW_SLOTS; ++i) {
+            Bucket memory b = w[i];
+            if (b.amount != 0 && b.index >= lo && b.index <= cur && b.index < best) {
+                best = b.index;
+                amount = b.amount;
+            }
+        }
+        if (best != type(uint256).max) releaseAt = (best + 1) * size + m.params.periodLength;
     }
 
     function balance() external view returns (uint256) {
@@ -434,7 +515,7 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         if (!r.allowed) return Reason.MerchantNotAllowed;
         if (amount > m.params.perTxCap) return Reason.ExceedsPerTxCap;
         if (r.perTxCap != 0 && amount > r.perTxCap) return Reason.ExceedsMerchantPerTxCap;
-        if (amount + _periodSpent(m) > m.params.periodCap) return Reason.ExceedsPeriodCap;
+        if (amount + _windowSpent(mandateId) > m.params.periodCap) return Reason.ExceedsPeriodCap;
         if (r.totalCap != 0 && amount + merchantSpent[mandateId][merchant] > r.totalCap) {
             return Reason.ExceedsMerchantTotalCap;
         }
@@ -497,14 +578,9 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
     ) internal {
         Mandate storage m = _mandates[mandateId];
 
-        // Effects: roll the fixed window if needed, then book the spend.
-        uint64 idx = _periodIndex(m);
-        if (m.periodIndex != idx) {
-            m.periodIndex = idx;
-            m.periodSpent = 0;
-        }
+        // Effects: book the spend into the current time bucket and the lifetime counters.
         // Safe casts: amount <= perTxCap <= type(uint128).max, and each running total is capped by a uint128.
-        m.periodSpent += uint128(amount);
+        _bookWindow(mandateId, amount);
         m.spentTotal += uint128(amount);
         merchantSpent[mandateId][merchant] += uint128(amount);
         _invoices[_invoiceKey(merchant, invoiceRef)] = InvoiceState.Paid;
@@ -536,13 +612,36 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         );
     }
 
-    function _periodIndex(Mandate storage m) internal view returns (uint64) {
-        if (block.timestamp <= m.params.validAfter) return 0;
-        return uint64((block.timestamp - m.params.validAfter) / m.params.periodLength);
+    /// @dev Bucket length in seconds: ceil(periodLength / WINDOW_BUCKETS), at least 1.
+    function _bucketSize(uint256 periodLength) internal pure returns (uint256) {
+        return (periodLength + WINDOW_BUCKETS - 1) / WINDOW_BUCKETS;
     }
 
-    function _periodSpent(Mandate storage m) internal view returns (uint256) {
-        return m.periodIndex == _periodIndex(m) ? m.periodSpent : 0;
+    /// @dev Buckets with index in [lo, cur] overlap the trailing window (now - periodLength, now].
+    function _windowRange(uint256 periodLength, uint256 size) internal view returns (uint256 lo, uint256 cur) {
+        cur = block.timestamp / size;
+        lo = block.timestamp >= periodLength ? (block.timestamp - periodLength) / size : 0;
+    }
+
+    function _windowSpent(uint256 mandateId) internal view returns (uint256 spent) {
+        uint256 periodLength = _mandates[mandateId].params.periodLength;
+        if (periodLength == 0) return 0;
+        (uint256 lo, uint256 cur) = _windowRange(periodLength, _bucketSize(periodLength));
+        Bucket[WINDOW_SLOTS] storage w = _window[mandateId];
+        for (uint256 i; i < WINDOW_SLOTS; ++i) {
+            Bucket memory b = w[i];
+            if (b.amount != 0 && b.index >= lo && b.index <= cur) spent += b.amount;
+        }
+    }
+
+    function _bookWindow(uint256 mandateId, uint256 amount) internal {
+        uint256 cur = block.timestamp / _bucketSize(_mandates[mandateId].params.periodLength);
+        Bucket storage b = _window[mandateId][cur % WINDOW_SLOTS];
+        if (b.index != cur) {
+            b.index = uint64(cur);
+            b.amount = 0;
+        }
+        b.amount += uint128(amount); // <= periodCap (checked before booking), a uint128
     }
 
     function _invoiceKey(address merchant, bytes32 invoiceRef) internal pure returns (bytes32) {

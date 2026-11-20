@@ -51,7 +51,7 @@ interface IWarrantVault {
         address agent; // signing key: EOA or ERC-1271 contract
         uint256 agentId; // optional AgentRegistry identity (0 = none); the registry's wallet must equal `agent`
         uint128 perTxCap; // max per single payment
-        uint128 periodCap; // max per fixed window of `periodLength` seconds, windows start at `validAfter`
+        uint128 periodCap; // max spent within any rolling `periodLength` seconds (see WarrantVault, spend window)
         uint128 totalCap; // max over the whole life of the mandate
         uint32 periodLength; // seconds
         uint48 validAfter; // not usable before
@@ -70,8 +70,6 @@ interface IWarrantVault {
     struct Mandate {
         MandateParams params;
         uint128 spentTotal;
-        uint128 periodSpent; // spent in window `periodIndex`
-        uint64 periodIndex;
         bool revoked;
     }
 
@@ -134,6 +132,16 @@ interface IWarrantVault {
         bytes32 intentHash,
         uint48 expiresAt
     );
+    /// @notice A validly signed intent was refused by the mandate's rules. No funds moved; the nonce is consumed.
+    event PaymentRefused(
+        uint256 indexed mandateId,
+        address indexed agent,
+        address indexed merchant,
+        uint256 amount,
+        Reason reason,
+        bytes32 invoiceRef,
+        bytes32 intentHash
+    );
     event PendingApproved(uint256 indexed pendingId, address indexed by);
     event PendingRejected(uint256 indexed pendingId, address indexed by);
     event PendingExpired(uint256 indexed pendingId);
@@ -155,6 +163,7 @@ interface IWarrantVault {
     error IdentityMismatch();
     error UnknownMandate();
     error PaymentRejected(Reason reason);
+    error RefusalLogFull();
     error PendingNotOpen();
     error PendingStillOpen();
     error PendingWindowClosed();
