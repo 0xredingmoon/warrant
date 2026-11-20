@@ -55,6 +55,7 @@ export function reasonName(code: number): ReasonName {
 
 /** Human-readable explanation for a reason (by code or name). */
 export function reasonMessage(reason: number | ReasonName): string {
+  if (typeof reason === "number" && !NAMES[reason]) return `The vault returned a reason this SDK does not know (code ${reason}). Update @warrant/sdk.`;
   return MESSAGES[typeof reason === "number" ? reasonName(reason) : reason];
 }
 
@@ -65,7 +66,7 @@ export const isAccepted = (code: number) => code === Reason.Ok || code === Reaso
 
 export interface CheckResult {
   code: number;
-  reason: ReasonName;
+  reason: ReasonName | "Unknown";
   message: string;
   /** executes now */
   ok: boolean;
@@ -74,5 +75,5 @@ export interface CheckResult {
 }
 
 export function toCheckResult(code: number): CheckResult {
-  return { code, reason: reasonName(code), message: reasonMessage(code), ok: isOk(code), accepted: isAccepted(code) };
+  return { code, reason: NAMES[code] ?? "Unknown", message: reasonMessage(code), ok: isOk(code), accepted: isAccepted(code) };
 }

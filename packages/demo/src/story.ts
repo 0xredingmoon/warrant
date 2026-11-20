@@ -14,6 +14,7 @@ import {
   getMandate,
   getPending,
   getTokenBalance,
+  markCreation,
   getVaultState,
   giveFeedback,
   parseUsd,
@@ -35,6 +36,7 @@ import { type Address, type Hex, getAddress, parseEther, formatEther } from "vie
 import { privateKeyToAccount } from "viem/accounts";
 import { chain, chainId, demoKeys, explorer, loadDeployments, network, publicClient, rpcUrl, ROOT, walletFor } from "./env";
 import { startLedgerline, startNotesSite } from "./servers";
+import { toMarkdown, type RunReport } from "./report";
 
 
 /* ------------------------------------------------------------------ output helpers */
@@ -311,7 +313,7 @@ async function main() {
 
     heading("Owner revokes the mandate");
     const rv = await revokeMandate(ownerClients, vault, mand.mandateId);
-    record({ outcome: "info", text: `mandate #${mand.mandateId} revoked`, txHash: rv.hash });
+    record({ outcome: "done", text: `mandate #${mand.mandateId} revoked`, txHash: rv.hash });
     const a5 = await fetchPaid(`${ledgerline.url}/v1/filings/ACME/10k-summary`, "ACME brief: re-fetch 10-K");
     expect(a5.status === "blocked" && a5.pay.check.code === Reason.MandateRevoked, "revoked mandate must block");
     record({ outcome: "blocked", text: `0.15 tUSD8 → Ledgerline: ${a5.pay.check.message}` });
@@ -328,7 +330,7 @@ async function main() {
       tag1: "delivery",
       tag2: "paid-on-first-request",
     });
-    record({ outcome: "info", text: "Ledgerline → agent: 96/100, tag delivery", txHash: fb.hash });
+    record({ outcome: "done", text: "Ledgerline → agent: 96/100, tag delivery", txHash: fb.hash });
     const rep = await getAgentReputation(publicClient, REGISTRY, reg.agentId);
     say(`agent #${rep.agentId}: ${rep.paymentCount} verified payments, ${formatUsd(rep.verifiedVolume)} tUSD8 volume, ${rep.feedbackCount} rating, average ${rep.averageValue}`);
     expect(rep.paymentCount === 3 && rep.feedbackCount === 1, `unexpected reputation ${JSON.stringify(rep, (_k, x) => (typeof x === "bigint" ? x.toString() : x))}`);
@@ -342,30 +344,19 @@ async function main() {
     expect(mnow.spentTotal === parseUsd("0.90"), `gross spent should be 0.90, got ${formatUsd(mnow.spentTotal)}`);
     const left = await getTokenBalance(publicClient, TOKEN, vault);
     const wd = await withdraw(ownerClients, vault, ownerAccount.address, left);
-    record({ outcome: "info", text: `owner withdrew the remaining ${formatUsd(left)} tUSD8`, txHash: wd.hash });
+    record({ outcome: "done", text: `owner withdrew the remaining ${formatUsd(left)} tUSD8`, txHash: wd.hash });
 
     heading("Audit trail (chunked eth_getLogs, 1,000 blocks at a time)");
-    const log = await getAuditLog({ publicClient, vault, fromBlock: v.receipt.blockNumber });
+    const log = markCreation(await getAuditLog({ publicClient, vault, fromBlock: v.receipt.blockNumber }));
     for (const e of log) say(`${dim(`#${e.blockNumber}`)}  ${e.summary}`);
     expect(log.some((e) => e.kind === "PaymentQueued") && log.some((e) => e.kind === "MandateRevoked"), "audit log incomplete");
 
     /* -------------------------------------------------------------- write-up */
     const txRows = rows.filter((r) => r.txHash);
-    const report = { network, chainId, factory: FACTORY, registry: REGISTRY, vault, agent: keys.agent.address, mandateId: mand.mandateId.toString(), merchant: keys.merchantA.address, attacker: evilAddress, rows, finishedAt: new Date().toISOString() };
+    const report: RunReport = { network, chainId, factory: FACTORY, registry: REGISTRY, vault, agent: keys.agent.address, mandateId: mand.mandateId.toString(), merchant: keys.merchantA.address, attacker: evilAddress, rows, finishedAt: new Date().toISOString() };
     mkdirSync(resolve(ROOT, ".demo"), { recursive: true });
     writeFileSync(resolve(ROOT, ".demo", `run-${network}.json`), JSON.stringify(report, null, 2));
-    const md = [
-      `# Demo run on ${network === "aevum" ? "Aevum testnet" : "local anvil fork of Aevum"}`,
-      "",
-      `Chain ${chainId}. Vault \`${vault}\`, agent \`${keys.agent.address}\`, merchant (Ledgerline) \`${keys.merchantA.address}\`, attacker \`${evilAddress}\`.`,
-      "",
-      "| Step | Outcome | What happened | Transaction |",
-      "| --- | --- | --- | --- |",
-      ...rows
-        .filter((r) => r.outcome !== "info" || r.txHash)
-        .map((r) => `| ${r.step} | ${r.outcome} | ${r.text.replaceAll("|", "\\|")} | ${r.txHash ? `[${r.txHash.slice(0, 10)}…](${r.url})` : "none (refused before sending, no gas spent)"} |`),
-      "",
-    ].join("\n");
+    const md = toMarkdown(report);
     writeFileSync(resolve(ROOT, ".demo", `run-${network}.md`), md);
     console.log(`\n${green("Done.")} ${txRows.length} transactions, ${rows.filter((r) => r.outcome === "blocked").length} payments refused by the vault.`);
     console.log(dim(`report: .demo/run-${network}.json, .demo/run-${network}.md  relayer ${relayerAddress}`));

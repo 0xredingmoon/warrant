@@ -122,6 +122,19 @@ export function decodeAuditLogs(logs: Log[]): AuditEntry[] {
 }
 
 /**
+ * A vault's constructor emits `GuardianSet` first. For a log read from the vault's creation block, present that first
+ * entry as the creation event instead of "guardian set".
+ */
+export function markCreation(entries: AuditEntry[]): AuditEntry[] {
+  return entries.map((e, i) => {
+    if (i !== 0 || e.kind !== "GuardianSet") return e;
+    const g = String((e.args as any).guardian);
+    const none = g === "0x0000000000000000000000000000000000000000";
+    return { ...e, summary: none ? "Vault created, no guardian" : `Vault created with guardian ${short(g)}` };
+  });
+}
+
+/**
  * Full audit trail of a vault from `fromBlock` (use the block the vault was created in) to `toBlock` (default: latest).
  * Reads in ≤1,000-block chunks.
  */

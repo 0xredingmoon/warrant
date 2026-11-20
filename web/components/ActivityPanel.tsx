@@ -1,7 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
-import type { AuditEntry } from "@warrant/sdk";
+import { markCreation, type AuditEntry } from "@warrant/sdk";
 import { dateTime, txLink } from "@/lib/format";
 import { useAuditProgress, useClient } from "@/lib/queries";
 
@@ -20,12 +20,7 @@ function When({ block }: { block: bigint }) {
 
 export function ActivityPanel({ vault, audit, loading, error }: { vault: Address; audit?: AuditEntry[]; loading: boolean; error: boolean }) {
   const progress = useAuditProgress(vault);
-  // the vault's constructor emits GuardianSet first: present it as the creation event
-  const all = (audit ?? []).map((e, i) =>
-    i === 0 && e.kind === "GuardianSet"
-      ? { ...e, summary: (e.args as any).guardian === "0x0000000000000000000000000000000000000000" ? "Vault created, no guardian" : `Vault created with guardian ${String((e.args as any).guardian).slice(0, 6)}…${String((e.args as any).guardian).slice(-4)}` }
-      : e,
-  );
+  const all = markCreation(audit ?? []);
   const rows = [...all].reverse();
   const shown = rows.slice(0, 60);
   return (
