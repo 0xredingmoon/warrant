@@ -6,7 +6,7 @@ const base: RelayerConfig = {
   rpcUrl: "http://127.0.0.1:1",
   chainId: 44005,
   privateKey: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-  factory: "0x9D2CF5776359fD502a1a09862D8Ef03F41446442",
+  factory: "0x66687369d9C683aaaaDAe98b747b63eE7e0662E3",
   explorerUrl: "https://explorer-test.qday.info",
   ratePerMinuteIp: 3,
   ratePerMinuteVault: 30,

@@ -7,7 +7,7 @@ import { createMerchant } from "../src";
 const merchant = createMerchant({
   publicClient: { getTransactionReceipt: async () => { throw new Error("not found"); } } as unknown as PublicClient,
   chainId: 44005,
-  factory: "0x9D2CF5776359fD502a1a09862D8Ef03F41446442",
+  factory: "0x66687369d9C683aaaaDAe98b747b63eE7e0662E3",
   token: "0x456569838f1d43009A91ebA4263147Afd7233483",
   payTo: "0xf2b01C5b12DaAe6adAa0a876065D303302F4b4Ae",
   name: "Test API",
@@ -59,7 +59,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { openDb } from "@warrant/store";
 import { SqliteInvoiceStore } from "../src";
 
-const FACTORY = "0x9D2CF5776359fD502a1a09862D8Ef03F41446442" as const;
+const FACTORY = "0x66687369d9C683aaaaDAe98b747b63eE7e0662E3" as const;
 const TOKEN = "0x456569838f1d43009A91ebA4263147Afd7233483" as const;
 const PAYEE = "0xf2b01C5b12DaAe6adAa0a876065D303302F4b4Ae" as const;
 const VAULT = "0x927d8b1030E90d94039b3281A3E4b415E11c6aba" as const;
