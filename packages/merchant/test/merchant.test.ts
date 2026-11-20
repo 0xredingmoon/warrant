@@ -144,7 +144,7 @@ describe("x402 paywall", () => {
     const intent = buildIntent({ mandateId: 1n, merchant: PAYEE, amount: parseUsd("0.15"), invoiceRef: ref });
     const signature = await signIntent({ signer: agent, chainId: 44005, vault: VAULT, intent });
     const payload = payloadFromIntent(VAULT, intent, signature);
-    const header =
+    const header: Record<string, string> =
       version === 1
         ? { "x-payment": encodeHeader({ x402Version: 1, scheme: "warrant", network: "aevum-testnet", payload }) }
         : { "payment-signature": encodeHeader({ x402Version: 2, accepted: decodeHeader<any>(first.headers.get("payment-required")!).accepts[0], payload }) };
