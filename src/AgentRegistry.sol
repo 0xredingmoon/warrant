@@ -88,7 +88,9 @@ contract AgentRegistry is ERC721, EIP712, IAgentRegistry {
 
     event Registered(uint256 indexed agentId, string agentURI, address indexed owner);
     event URIUpdated(uint256 indexed agentId, string newURI, address indexed updatedBy);
-    event MetadataSet(uint256 indexed agentId, string indexed indexedMetadataKey, string metadataKey, bytes metadataValue);
+    event MetadataSet(
+        uint256 indexed agentId, string indexed indexedMetadataKey, string metadataKey, bytes metadataValue
+    );
     event AgentWalletSet(uint256 indexed agentId, address indexed newWallet);
     event FactorySet(address indexed factory);
     event VaultRegistered(address indexed vault);
@@ -172,7 +174,10 @@ contract AgentRegistry is ERC721, EIP712, IAgentRegistry {
         agentId = _register(uri);
     }
 
-    function register(string calldata uri, MetadataEntry[] calldata metadata) external returns (uint256 agentId) {
+    function register(string calldata uri, MetadataEntry[] calldata metadata)
+        external
+        returns (uint256 agentId)
+    {
         agentId = _register(uri);
         for (uint256 i; i < metadata.length; ++i) {
             _setMetadata(agentId, metadata[i].metadataKey, metadata[i].metadataValue);
@@ -186,14 +191,18 @@ contract AgentRegistry is ERC721, EIP712, IAgentRegistry {
         emit URIUpdated(agentId, newURI, msg.sender);
     }
 
-    function setMetadata(uint256 agentId, string calldata metadataKey, bytes calldata metadataValue) external {
+    function setMetadata(uint256 agentId, string calldata metadataKey, bytes calldata metadataValue)
+        external
+    {
         _requireAgentOwner(agentId);
         _setMetadata(agentId, metadataKey, metadataValue);
     }
 
     function getMetadata(uint256 agentId, string calldata metadataKey) external view returns (bytes memory) {
         _requireExists(agentId);
-        if (keccak256(bytes(metadataKey)) == AGENT_WALLET_KEY) return abi.encodePacked(_agentWallet[agentId]);
+        if (keccak256(bytes(metadataKey)) == AGENT_WALLET_KEY) {
+            return abi.encodePacked(_agentWallet[agentId]);
+        }
         return _metadata[agentId][keccak256(bytes(metadataKey))];
     }
 
@@ -282,7 +291,9 @@ contract AgentRegistry is ERC721, EIP712, IAgentRegistry {
         if (valueDecimals > MAX_VALUE_DECIMALS) revert InvalidDecimals();
         if (bytes(feedbackURI).length > MAX_URI_LENGTH) revert UriTooLong();
         // A merchant that is the agent's own owner or wallet can't rate it: no self-dealing.
-        if (r.merchant == _ownerOf(r.agentId) || r.merchant == _agentWallet[r.agentId]) revert SelfFeedback();
+        if (r.merchant == _ownerOf(r.agentId) || r.merchant == _agentWallet[r.agentId]) {
+            revert SelfFeedback();
+        }
 
         f.value = value;
         f.valueDecimals = valueDecimals;
@@ -296,7 +307,9 @@ contract AgentRegistry is ERC721, EIP712, IAgentRegistry {
         Summary storage s = _summary[r.agentId];
         s.feedbackCount += 1;
         s.valueSum += _normalise(value, valueDecimals);
-        emit NewFeedback(r.agentId, msg.sender, receiptId, value, valueDecimals, tag1, tag2, feedbackURI, feedbackHash);
+        emit NewFeedback(
+            r.agentId, msg.sender, receiptId, value, valueDecimals, tag1, tag2, feedbackURI, feedbackHash
+        );
     }
 
     function revokeFeedback(bytes32 receiptId) external {

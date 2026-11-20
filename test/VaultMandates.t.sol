@@ -162,13 +162,15 @@ contract VaultMandatesTest is Base {
         vault.setMerchantRule(id, merchantB, _rule(true, 1 * USD, 0));
         assertEq(uint8(vault.checkTerms(id, merchantB, 1 * USD, _ref(1))), uint8(IWarrantVault.Reason.Ok));
         assertEq(
-            uint8(vault.checkTerms(id, merchantB, 2 * USD, _ref(1))), uint8(IWarrantVault.Reason.ExceedsMerchantPerTxCap)
+            uint8(vault.checkTerms(id, merchantB, 2 * USD, _ref(1))),
+            uint8(IWarrantVault.Reason.ExceedsMerchantPerTxCap)
         );
 
         vm.prank(ownerAddr);
         vault.setMerchantRule(id, merchantB, _rule(false, 0, 0));
         assertEq(
-            uint8(vault.checkTerms(id, merchantB, 1 * USD, _ref(1))), uint8(IWarrantVault.Reason.MerchantNotAllowed)
+            uint8(vault.checkTerms(id, merchantB, 1 * USD, _ref(1))),
+            uint8(IWarrantVault.Reason.MerchantNotAllowed)
         );
     }
 

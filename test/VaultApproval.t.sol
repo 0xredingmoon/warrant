@@ -33,7 +33,9 @@ contract VaultApprovalTest is Base {
         bytes memory sig = _sign(agentKey, i);
         assertEq(uint8(vault.check(i, sig)), uint8(IWarrantVault.Reason.ApprovalRequired));
         vm.expectEmit(true, true, true, true, address(vault));
-        emit IWarrantVault.PaymentQueued(1, id, merchantA, _ref(1), 3 * USD, i.intentHash, uint48(T0 + 1 days));
+        emit IWarrantVault.PaymentQueued(
+            1, id, merchantA, _ref(1), 3 * USD, i.intentHash, uint48(T0 + 1 days)
+        );
         vm.prank(relayer);
         (IWarrantVault.Reason r, uint256 pid) = vault.pay(i, sig);
 
@@ -194,7 +196,11 @@ contract VaultApprovalTest is Base {
         vm.prank(guardian);
         vault.revokeMandate(id);
         vm.prank(ownerAddr);
-        vm.expectRevert(abi.encodeWithSelector(IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.MandateRevoked));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.MandateRevoked
+            )
+        );
         vault.approve(pid);
         assertEq(token.balanceOf(merchantA), 0);
     }
@@ -204,7 +210,9 @@ contract VaultApprovalTest is Base {
         vm.prank(guardian);
         vault.freezeAll();
         vm.prank(ownerAddr);
-        vm.expectRevert(abi.encodeWithSelector(IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.VaultFrozen));
+        vm.expectRevert(
+            abi.encodeWithSelector(IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.VaultFrozen)
+        );
         vault.approve(pid);
     }
 
@@ -213,7 +221,9 @@ contract VaultApprovalTest is Base {
         vm.startPrank(ownerAddr);
         vault.setMerchantRule(id, merchantA, _rule(false, 0, 0));
         vm.expectRevert(
-            abi.encodeWithSelector(IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.MerchantNotAllowed)
+            abi.encodeWithSelector(
+                IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.MerchantNotAllowed
+            )
         );
         vault.approve(pid);
         vm.stopPrank();
@@ -231,7 +241,9 @@ contract VaultApprovalTest is Base {
         vm.startPrank(ownerAddr);
         vault.approve(p1);
         vm.expectRevert(
-            abi.encodeWithSelector(IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.ExceedsPeriodCap)
+            abi.encodeWithSelector(
+                IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.ExceedsPeriodCap
+            )
         );
         vault.approve(p2);
         vm.stopPrank();
@@ -242,7 +254,9 @@ contract VaultApprovalTest is Base {
         vm.startPrank(ownerAddr);
         vault.withdraw(ownerAddr, 1_000 * USD);
         vm.expectRevert(
-            abi.encodeWithSelector(IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.InsufficientBalance)
+            abi.encodeWithSelector(
+                IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.InsufficientBalance
+            )
         );
         vault.approve(pid);
         vm.stopPrank();
@@ -259,7 +273,9 @@ contract VaultApprovalTest is Base {
         vm.warp(T0 + 3 hours);
         vm.prank(ownerAddr);
         vm.expectRevert(
-            abi.encodeWithSelector(IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.MandateExpired)
+            abi.encodeWithSelector(
+                IWarrantVault.PaymentRejected.selector, IWarrantVault.Reason.MandateExpired
+            )
         );
         vault.approve(pid);
     }

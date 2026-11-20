@@ -13,6 +13,9 @@ contract MockSmartAgent {
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4) {
         (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(hash, signature);
-        return (err == ECDSA.RecoverError.NoError && recovered == signer) ? bytes4(0x1626ba7e) : bytes4(0xffffffff);
+        return
+            (err == ECDSA.RecoverError.NoError && recovered == signer)
+                ? bytes4(0x1626ba7e)
+                : bytes4(0xffffffff);
     }
 }

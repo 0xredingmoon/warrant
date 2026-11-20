@@ -40,7 +40,9 @@ contract MockUSD8 is ERC20Permit {
         require(!authorizationState[from][nonce], "authorization used");
         bytes32 digest = _hashTypedDataV4(
             keccak256(
-                abi.encode(RECEIVE_WITH_AUTHORIZATION_TYPEHASH, from, to, value, validAfter, validBefore, nonce)
+                abi.encode(
+                    RECEIVE_WITH_AUTHORIZATION_TYPEHASH, from, to, value, validAfter, validBefore, nonce
+                )
             )
         );
         require(ECDSA.recover(digest, v, r, s) == from, "invalid signature");

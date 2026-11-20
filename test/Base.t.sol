@@ -59,7 +59,8 @@ abstract contract Base is Test {
 
     function _deployProtocol(uint16 feeBps) internal {
         registry = new AgentRegistry();
-        factory = new WarrantFactory(token, IAgentRegistry(address(registry)), address(this), treasury, feeBps);
+        factory =
+            new WarrantFactory(token, IAgentRegistry(address(registry)), address(this), treasury, feeBps);
         registry.setFactory(address(factory));
     }
 
@@ -80,14 +81,21 @@ abstract contract Base is Test {
         });
     }
 
-    function _rule(bool allowed, uint256 perTx, uint256 total) internal pure returns (IWarrantVault.MerchantRule memory) {
-        return IWarrantVault.MerchantRule({allowed: allowed, perTxCap: uint128(perTx), totalCap: uint128(total)});
+    function _rule(bool allowed, uint256 perTx, uint256 total)
+        internal
+        pure
+        returns (IWarrantVault.MerchantRule memory)
+    {
+        return IWarrantVault.MerchantRule({
+            allowed: allowed, perTxCap: uint128(perTx), totalCap: uint128(total)
+        });
     }
 
-    function _create(IWarrantVault.MandateParams memory p, address merchant, IWarrantVault.MerchantRule memory r)
-        internal
-        returns (uint256 id)
-    {
+    function _create(
+        IWarrantVault.MandateParams memory p,
+        address merchant,
+        IWarrantVault.MerchantRule memory r
+    ) internal returns (uint256 id) {
         address[] memory ms = new address[](1);
         ms[0] = merchant;
         IWarrantVault.MerchantRule[] memory rs = new IWarrantVault.MerchantRule[](1);
@@ -123,7 +131,10 @@ abstract contract Base is Test {
     }
 
     /// @dev Sign with the agent key and submit through a relayer.
-    function _pay(IWarrantVault.PaymentIntent memory i) internal returns (IWarrantVault.Reason r, uint256 pid) {
+    function _pay(IWarrantVault.PaymentIntent memory i)
+        internal
+        returns (IWarrantVault.Reason r, uint256 pid)
+    {
         bytes memory sig = _sign(agentKey, i);
         vm.prank(relayer);
         (r, pid) = vault.pay(i, sig);

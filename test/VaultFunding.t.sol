@@ -42,7 +42,13 @@ contract VaultFundingTest is Base {
         uint256 validBefore = block.timestamp + 1 hours;
         bytes32 structHash = keccak256(
             abi.encode(
-                t.RECEIVE_WITH_AUTHORIZATION_TYPEHASH(), funder, address(vault), 25 * USD, validAfter, validBefore, nonce
+                t.RECEIVE_WITH_AUTHORIZATION_TYPEHASH(),
+                funder,
+                address(vault),
+                25 * USD,
+                validAfter,
+                validBefore,
+                nonce
             )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", t.DOMAIN_SEPARATOR(), structHash));
@@ -79,7 +85,9 @@ contract VaultFundingTest is Base {
         MockUSD8 t = MockUSD8(address(token));
         bytes32 structHash = keccak256(
             abi.encode(
-                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                keccak256(
+                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                ),
                 funder,
                 address(vault),
                 value,
@@ -87,7 +95,8 @@ contract VaultFundingTest is Base {
                 deadline
             )
         );
-        (v, r, s) = vm.sign(funderKey, keccak256(abi.encodePacked("\x19\x01", t.DOMAIN_SEPARATOR(), structHash)));
+        (v, r, s) =
+            vm.sign(funderKey, keccak256(abi.encodePacked("\x19\x01", t.DOMAIN_SEPARATOR(), structHash)));
     }
 
     function test_depositWithPermit_gaslessViaRelayer() public {

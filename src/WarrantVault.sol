@@ -36,7 +36,8 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
     bytes32 public constant PAYMENT_INTENT_TYPEHASH = keccak256(
         "PaymentIntent(uint256 mandateId,address merchant,uint256 amount,bytes32 invoiceRef,bytes32 intentHash,bytes32 nonce,uint256 deadline)"
     );
-    bytes32 public constant APPROVE_PAYMENT_TYPEHASH = keccak256("ApprovePayment(uint256 pendingId,uint256 deadline)");
+    bytes32 public constant APPROVE_PAYMENT_TYPEHASH =
+        keccak256("ApprovePayment(uint256 pendingId,uint256 deadline)");
 
     uint256 public constant MAX_MANDATE_LIFETIME = 365 days;
     uint256 public constant MAX_MERCHANTS_PER_CALL = 32;
@@ -125,9 +126,8 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         bytes32 r,
         bytes32 s
     ) external nonReentrant {
-        IERC3009(address(token)).receiveWithAuthorization(
-            from, address(this), amount, validAfter, validBefore, nonce, v, r, s
-        );
+        IERC3009(address(token))
+            .receiveWithAuthorization(from, address(this), amount, validAfter, validBefore, nonce, v, r, s);
         emit Deposited(from, amount);
     }
 
@@ -163,7 +163,9 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         if (p.perTxCap == 0 || p.perTxCap > p.periodCap || p.periodCap > p.totalCap) revert InvalidCaps();
         if (p.periodLength == 0) revert InvalidTimeWindow();
         if (p.expiry <= block.timestamp || p.expiry <= p.validAfter) revert InvalidTimeWindow();
-        if (p.expiry - _max(p.validAfter, block.timestamp) > MAX_MANDATE_LIFETIME) revert InvalidTimeWindow();
+        if (p.expiry - _max(p.validAfter, block.timestamp) > MAX_MANDATE_LIFETIME) {
+            revert InvalidTimeWindow();
+        }
         if (p.approvalThreshold != 0) {
             if (p.approvalThreshold > p.perTxCap || p.approvalWindow == 0) revert InvalidApproval();
         }
@@ -185,7 +187,10 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
     }
 
     /// @notice Add, change or remove (`allowed = false`) a merchant for a mandate.
-    function setMerchantRule(uint256 mandateId, address merchant, MerchantRule calldata rule) external onlyOwner {
+    function setMerchantRule(uint256 mandateId, address merchant, MerchantRule calldata rule)
+        external
+        onlyOwner
+    {
         if (_mandates[mandateId].params.agent == address(0)) revert UnknownMandate();
         _setMerchantRule(mandateId, merchant, rule);
     }
@@ -304,7 +309,11 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Dry-run a signed intent. Never reverts; the reason says exactly what would happen.
-    function check(PaymentIntent calldata intent, bytes calldata agentSignature) external view returns (Reason) {
+    function check(PaymentIntent calldata intent, bytes calldata agentSignature)
+        external
+        view
+        returns (Reason)
+    {
         return _check(intent, agentSignature);
     }
 
@@ -321,7 +330,11 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         return _mandates[mandateId];
     }
 
-    function getMerchantRule(uint256 mandateId, address merchant) external view returns (MerchantRule memory) {
+    function getMerchantRule(uint256 mandateId, address merchant)
+        external
+        view
+        returns (MerchantRule memory)
+    {
         return _rules[mandateId][merchant];
     }
 
@@ -402,11 +415,13 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
 
     /// @param executing true when re-validating a queued payment at approval time: skips the invoice
     ///        uniqueness check (the queue entry holds it) and the approval threshold (the owner is approving).
-    function _checkTerms(uint256 mandateId, address merchant, uint256 amount, bytes32 invoiceRef, bool executing)
-        internal
-        view
-        returns (Reason)
-    {
+    function _checkTerms(
+        uint256 mandateId,
+        address merchant,
+        uint256 amount,
+        bytes32 invoiceRef,
+        bool executing
+    ) internal view returns (Reason) {
         Mandate storage m = _mandates[mandateId];
         if (m.params.agent == address(0)) return Reason.MandateNotFound;
         if (m.revoked) return Reason.MandateRevoked;
@@ -452,7 +467,13 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         });
         _invoices[_invoiceKey(intent.merchant, intent.invoiceRef)] = InvoiceState.Pending;
         emit PaymentQueued(
-            pendingId, intent.mandateId, intent.merchant, intent.invoiceRef, intent.amount, intent.intentHash, expiresAt
+            pendingId,
+            intent.mandateId,
+            intent.merchant,
+            intent.invoiceRef,
+            intent.amount,
+            intent.intentHash,
+            expiresAt
         );
     }
 
@@ -467,9 +488,13 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
         _execute(q.mandateId, q.merchant, q.amount, q.invoiceRef, q.intentHash);
     }
 
-    function _execute(uint256 mandateId, address merchant, uint256 amount, bytes32 invoiceRef, bytes32 intentHash)
-        internal
-    {
+    function _execute(
+        uint256 mandateId,
+        address merchant,
+        uint256 amount,
+        bytes32 invoiceRef,
+        bytes32 intentHash
+    ) internal {
         Mandate storage m = _mandates[mandateId];
 
         // Effects: roll the fixed window if needed, then book the spend.
@@ -506,7 +531,9 @@ contract WarrantVault is IWarrantVault, EIP712, ReentrancyGuard {
                 emit ReceiptNotRecorded(mandateId, invoiceRef);
             }
         }
-        emit PaymentExecuted(mandateId, merchant, invoiceRef, m.params.agent, amount, fee, intentHash, receiptId);
+        emit PaymentExecuted(
+            mandateId, merchant, invoiceRef, m.params.agent, amount, fee, intentHash, receiptId
+        );
     }
 
     function _periodIndex(Mandate storage m) internal view returns (uint64) {

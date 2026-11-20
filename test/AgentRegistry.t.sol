@@ -40,7 +40,9 @@ contract AgentRegistryTest is Base {
         (, string memory name, string memory version, uint256 chainId, address vc,,) = registry.eip712Domain();
         return keccak256(
             abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
                 keccak256(bytes(name)),
                 keccak256(bytes(version)),
                 chainId,
@@ -114,9 +116,8 @@ contract AgentRegistryTest is Base {
     function test_setAgentWallet_requiresProofFromNewWallet() public {
         uint256 deadline = block.timestamp + 1 hours;
         (, uint256 otherKey) = makeAddrAndKey("someoneElse");
-        bytes32 structHash = keccak256(
-            abi.encode(registry.AGENT_WALLET_TYPEHASH(), agentId, evil, agentOwner, deadline)
-        );
+        bytes32 structHash =
+            keccak256(abi.encode(registry.AGENT_WALLET_TYPEHASH(), agentId, evil, agentOwner, deadline));
         (uint8 v, bytes32 r, bytes32 s) =
             vm.sign(otherKey, keccak256(abi.encodePacked("\x19\x01", _registryDomain(), structHash)));
         vm.prank(agentOwner);
@@ -139,8 +140,9 @@ contract AgentRegistryTest is Base {
     function test_setAgentWallet_smartContractWallet_erc1271() public {
         MockSmartAgent smart = new MockSmartAgent(agentAddr);
         uint256 deadline = block.timestamp + 1 hours;
-        bytes32 structHash =
-            keccak256(abi.encode(registry.AGENT_WALLET_TYPEHASH(), agentId, address(smart), agentOwner, deadline));
+        bytes32 structHash = keccak256(
+            abi.encode(registry.AGENT_WALLET_TYPEHASH(), agentId, address(smart), agentOwner, deadline)
+        );
         (uint8 v, bytes32 r, bytes32 s) =
             vm.sign(agentKey, keccak256(abi.encodePacked("\x19\x01", _registryDomain(), structHash)));
         vm.prank(agentOwner);
@@ -182,7 +184,9 @@ contract AgentRegistryTest is Base {
         vm.expectEmit(true, true, true, true, address(registry));
         emit AgentRegistry.ReceiptRecorded(rid, agentId, merchantA, address(vault), 4 * USD, _ref(1));
         vm.expectEmit(true, true, true, true, address(vault));
-        emit IWarrantVault.PaymentExecuted(mandateId, merchantA, _ref(1), agentAddr, 4 * USD, 0, i.intentHash, rid);
+        emit IWarrantVault.PaymentExecuted(
+            mandateId, merchantA, _ref(1), agentAddr, 4 * USD, 0, i.intentHash, rid
+        );
         vault.pay(i, _sign(agentKey, i));
 
         AgentRegistry.Receipt memory r = registry.getReceipt(rid);
@@ -253,7 +257,9 @@ contract AgentRegistryTest is Base {
         registry.giveFeedback(rid, 5, 0, "quality", "", "", bytes32(0));
 
         vm.expectEmit(true, true, true, true, address(registry));
-        emit AgentRegistry.NewFeedback(agentId, merchantA, rid, 87, 0, "quality", "api", "ipfs://fb", keccak256("fb"));
+        emit AgentRegistry.NewFeedback(
+            agentId, merchantA, rid, 87, 0, "quality", "api", "ipfs://fb", keccak256("fb")
+        );
         vm.prank(merchantA);
         registry.giveFeedback(rid, 87, 0, "quality", "api", "ipfs://fb", keccak256("fb"));
 

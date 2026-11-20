@@ -19,7 +19,9 @@ contract VaultPaymentsTest is Base {
         IWarrantVault.PaymentIntent memory i = _intent(id, merchantA, 3 * USD, _ref(1));
         bytes memory sig = _sign(agentKey, i);
         vm.expectEmit(true, true, true, true, address(vault));
-        emit IWarrantVault.PaymentExecuted(id, merchantA, _ref(1), agentAddr, 3 * USD, 0, i.intentHash, bytes32(0));
+        emit IWarrantVault.PaymentExecuted(
+            id, merchantA, _ref(1), agentAddr, 3 * USD, 0, i.intentHash, bytes32(0)
+        );
         vm.prank(relayer);
         (IWarrantVault.Reason r, uint256 pid) = vault.pay(i, sig);
 
@@ -266,7 +268,9 @@ contract VaultPaymentsTest is Base {
         IWarrantVault.PaymentIntent memory i = _intent(77, merchantA, 1 * USD, _ref(1));
         bytes memory sig = _sign(agentKey, i);
         assertEq(uint8(vault.check(i, sig)), uint8(IWarrantVault.Reason.MandateNotFound));
-        assertEq(uint8(vault.checkTerms(77, merchantA, 1, _ref(1))), uint8(IWarrantVault.Reason.MandateNotFound));
+        assertEq(
+            uint8(vault.checkTerms(77, merchantA, 1, _ref(1))), uint8(IWarrantVault.Reason.MandateNotFound)
+        );
         _expectReject(IWarrantVault.Reason.MandateNotFound);
         vault.pay(i, sig);
     }
@@ -333,7 +337,9 @@ contract VaultPaymentsTest is Base {
         IWarrantVault.PaymentIntent memory i = _intent(id, merchantA, 4 * USD, _ref(1));
         bytes memory sig = _sign(agentKey, i);
         vm.expectEmit(true, true, true, true, address(vault));
-        emit IWarrantVault.PaymentExecuted(id, merchantA, _ref(1), agentAddr, 4 * USD, 20_000, i.intentHash, bytes32(0));
+        emit IWarrantVault.PaymentExecuted(
+            id, merchantA, _ref(1), agentAddr, 4 * USD, 20_000, i.intentHash, bytes32(0)
+        );
         vault.pay(i, sig);
         assertEq(token.balanceOf(merchantA), 4 * USD - 20_000);
         assertEq(token.balanceOf(treasury), 20_000);
@@ -379,7 +385,9 @@ contract VaultPaymentsTest is Base {
                 i.deadline
             )
         );
-        assertEq(vault.hashIntent(i), keccak256(abi.encodePacked("\x19\x01", vault.DOMAIN_SEPARATOR(), structHash)));
+        assertEq(
+            vault.hashIntent(i), keccak256(abi.encodePacked("\x19\x01", vault.DOMAIN_SEPARATOR(), structHash))
+        );
     }
 }
 

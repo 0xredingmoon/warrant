@@ -51,7 +51,8 @@ contract WarrantFactory is IWarrantFactory, Ownable2Step {
     /// @notice Create the caller's vault. `salt` lets one owner create several.
     /// @param guardian optional risk-reduction key (address(0) for none)
     function createVault(address guardian, bytes32 salt) external returns (address vault) {
-        vault = address(new WarrantVault{salt: _salt(msg.sender, salt)}(token, msg.sender, guardian, registry));
+        vault =
+            address(new WarrantVault{salt: _salt(msg.sender, salt)}(token, msg.sender, guardian, registry));
         isVault[vault] = true;
         _vaultsOf[msg.sender].push(vault);
         ++vaultCount;
@@ -65,7 +66,13 @@ contract WarrantFactory is IWarrantFactory, Ownable2Step {
             abi.encodePacked(type(WarrantVault).creationCode, abi.encode(token, owner_, guardian, registry))
         );
         return address(
-            uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), _salt(owner_, salt), initCodeHash))))
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(bytes1(0xff), address(this), _salt(owner_, salt), initCodeHash)
+                    )
+                )
+            )
         );
     }
 
