@@ -14,7 +14,7 @@ import { resolve } from "node:path";
 import puppeteer from "puppeteer-core";
 import { createMerchant } from "@warrant/merchant";
 import { WarrantAgent, formatUsd, getTokenBalance, x402Fetch, Reason } from "@warrant/sdk";
-import { encodeAbiParameters, getAddress, keccak256, parseEther, type Hex } from "viem";
+import { encodeAbiParameters, encodeFunctionData, getAddress, keccak256, parseEther, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { chain, chainId, demoKeys, explorer, loadDeployments, network, publicClient, ROOT, rpcUrl, walletFor } from "./env";
 import { startLedgerline, startNotesSite } from "./servers";
@@ -26,7 +26,11 @@ const live = network === "aevum";
 const FAST = process.env.FAST === "1"; // shorter holds, for rehearsals
 const dep = loadDeployments();
 const keys = demoKeys();
-const owner = live ? keys.forkOwner : privateKeyToAccount(generatePrivateKey()); // (named for the fork; on Aevum it is the funded video wallet from .demo/keys-aevum.json)
+const ownerKeyFile = resolve(ROOT, ".demo", "video-owner-aevum.key");
+// Each live run needs a wallet that has no vault yet (the dashboard opens a vault it finds). Rotate: the previous owner passes its tUSD8 on.
+const prevOwner = live && existsSync(ownerKeyFile) ? privateKeyToAccount(readFileSync(ownerKeyFile, "utf8").trim() as Hex) : undefined;
+const ownerKey = generatePrivateKey();
+const owner = privateKeyToAccount(ownerKey);
 const ownerWallet = walletFor(owner);
 const TOKEN = dep.tUSD8;
 const FRAMES = "/tmp/warrant-frames";
@@ -39,6 +43,29 @@ const hold = (ms: number) => sleep(FAST ? Math.min(ms, 600) : ms);
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const txUrl = (h: string) => `${explorer}/tx/${h}`;
 const captionsLog: string[] = [];
+/** spans of real time spent waiting on the chain; the encoder plays them faster and the page shows a small badge */
+const waits: [number, number][] = [];
+const SPEEDUP = 3.5;
+async function chain<T>(p: Promise<T>): Promise<T> {
+  const t = Date.now();
+  const page = cur?.page;
+  await page?.evaluate(() => {
+    let b = document.getElementById("wspeed");
+    if (!b) {
+      b = document.createElement("div");
+      b.id = "wspeed";
+      b.style.cssText = "position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:2147483646;background:#15181b;color:#f2efe7;font:500 11px/1 ui-monospace,monospace;letter-spacing:.09em;text-transform:uppercase;padding:7px 11px;border-radius:99px;pointer-events:none";
+      b.textContent = "waiting for the chain · sped up";
+      document.body.appendChild(b);
+    }
+  }).catch(() => {});
+  try {
+    return await p;
+  } finally {
+    waits.push([t, Date.now()]);
+    await page?.evaluate(() => document.getElementById("wspeed")?.remove()).catch(() => {});
+  }
+}
 
 /* ------------------------------------------------------------------ fork funding (rehearsal only) */
 if (!live) {
@@ -47,8 +74,23 @@ if (!live) {
   const slot = keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [owner.address, 11n]));
   await rpc("anvil_setStorageAt", [TOKEN, slot, "0x" + (3_000_000n).toString(16).padStart(64, "0")]);
 } else {
-  const bal = await getTokenBalance(publicClient, TOKEN, owner.address);
-  if (bal < 3_000_000n) throw new Error(`video owner ${owner.address} needs 3.00 tUSD8, has ${formatUsd(bal)}`);
+  const deployer = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as Hex);
+  const send = async (from, to, data = undefined, value = undefined) => {
+    const h = await walletFor(from).sendTransaction({ account: from, chain, to, data, value, type: "legacy" });
+    await publicClient.waitForTransactionReceipt({ hash: h });
+  };
+  await send(deployer, owner.address, undefined, parseEther("0.011"));
+  const erc20 = [{ type: "function", name: "transfer", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }], stateMutability: "nonpayable" }];
+  let need = 3_000_000n;
+  for (const source of [prevOwner, deployer].filter(Boolean)) {
+    const have = await getTokenBalance(publicClient, TOKEN, source.address);
+    const amount = have < need ? have : need;
+    if (amount === 0n) continue;
+    await send(source, TOKEN, encodeFunctionData({ abi: erc20, functionName: "transfer", args: [owner.address, amount] }));
+    need -= amount;
+  }
+  if (need > 0n) throw new Error(`could not fund the video wallet with 3.00 tUSD8 (short by ${formatUsd(need)})`);
+  writeFileSync(ownerKeyFile, ownerKey + "\n", { mode: 0o600 });
 }
 
 /* ------------------------------------------------------------------ wallet bridge: signs in Node */
@@ -351,7 +393,7 @@ try {
   await caption(dash, "02 · Create the vault", "One transaction deploys a vault owned by this wallet. The address is deterministic, and the code is the same for everyone.");
   await clickText("button", "Create vault");
   await caption(dash, "02 · Create the vault", "Waiting for the chain…", 600);
-  await waitText("Vault created", 120000);
+  await chain(waitText("Vault created", 120000));
   await sleep(900);
   const vault = getAddress(await dash.evaluate(() => document.querySelector(".head a.mono")?.textContent));
   await shot(dash, "01-empty-vault");
@@ -363,7 +405,7 @@ try {
   await clickText("button", "Deposit");
   await typeInto('input[inputmode="decimal"]', "3");
   await clickText("button", "Deposit");
-  await dash.waitForFunction(() => document.querySelector(".balance .amt")?.textContent?.startsWith("3.00"), { timeout: 120000 });
+  await chain(dash.waitForFunction(() => document.querySelector(".balance .amt")?.textContent?.startsWith("3.00"), { timeout: 120000 }));
   await hold(1200);
 
   /* 4. mandate */
@@ -373,6 +415,7 @@ try {
   await uncaption(dash);
   await clickText("button", "Generate a new agent key");
   await clickText("button", "Reveal");
+  await dash.waitForFunction(() => /^0x[0-9a-f]{64}$/.test(document.querySelector(".key-box code")?.textContent ?? ""), { timeout: 15000 });
   const agentKey = (await dash.evaluate(() => document.querySelector(".key-box code")?.textContent)) as Hex;
   if (!/^0x[0-9a-f]{64}$/.test(agentKey)) throw new Error("agent key not shown");
   const agentAccount = privateKeyToAccount(agentKey);
@@ -382,16 +425,17 @@ try {
   await caption(dash, "04 · The mandate", "One merchant is allowed: Ledgerline Data, a filings API that charges per request. Anyone else is refused, whatever the agent is told.", 5600);
   await uncaption(dash);
   // 1.00 per payment, 1.00 per window, 3.00 total, ask from 0.50
+  // the template starts at 5.00 per payment with approval from 3.00, so lower the approval threshold first to keep the form valid at every step
+  await typeInto(".affix input", "0.5", 5);
   await typeInto(".affix input", "1", 0);
   await typeInto(".affix input", "1", 1);
   await typeInto(".affix input", "3", 2);
-  await typeInto(".affix input", "0.5", 5);
   await shot(dash, "02-new-mandate");
   await caption(dash, "04 · The mandate", "At most 1.00 per payment and 1.00 in any rolling 24 hours, 3.00 in total. Anything from 0.50 up waits for the owner.", 6200);
   await uncaption(dash);
   await clickText("button", "Issue mandate");
   await caption(dash, "04 · The mandate", "Registering the agent identity (ERC-8004 shaped), then creating the mandate. Three transactions.", 600);
-  await waitText("Mandate #1", 180000);
+  await chain(waitText("Mandate #1", 180000));
   await dash.waitForFunction(() => !document.querySelector(".sheet"), { timeout: 15000 });
   await sleep(800);
   await scrollTop();
@@ -401,7 +445,7 @@ try {
 
   /* 5. the agent works */
   const agent = new WarrantAgent({ signer: agentAccount, publicClient, chainId, vault, mandateId: 1n, relayerUrl: RELAYER, explorerUrl: explorer });
-  const buy = (url: string, label: string, prefer: 1 | 2 = 2) => x402Fetch({ ...agent.cfg }, url, {}, { prefer, context: { task: label, url } });
+  const buy = (url: string, label: string, prefer: 1 | 2 = 2) => chain(x402Fetch({ ...agent.cfg }, url, {}, { prefer, context: { task: label, url } }));
   const peek = async (url: string) => {
     const r = await fetch(url);
     const j: any = await r.json().catch(() => ({}));
@@ -434,7 +478,7 @@ try {
   await focus(dash);
   await scrollTop();
   await caption(dash, "06 · The owner sees it", "Each payment appears in the dashboard with its transaction. The window meter counts spend in the last 24 hours.", 600);
-  await waitText("Paid 0.25", 90000);
+  await chain(waitText("Paid 0.25", 90000));
   await scrollToText("Activity");
   await hold(3200);
   await uncaption(dash);
@@ -468,7 +512,7 @@ try {
   await focus(dash);
   await scrollTop();
   await caption(dash, "07 · The attack", "The contract checked the recipient against the owner's list and said no. The refusal is itself an on-chain event.", 600);
-  await waitText("Refused on-chain", 90000);
+  await chain(waitText("Refused on-chain", 90000));
   await scrollToText("Activity");
   await hold(3600);
   await shot(dash, "05-refused-on-chain");
@@ -491,17 +535,17 @@ try {
   await focus(dash);
   await scrollTop();
   await caption(dash, "08 · Asking first", "The payment sits in the owner's queue. Money has not moved.", 600);
-  await waitText("Decide in", 90000);
+  await chain(waitText("Decide in", 90000));
   await hold(2600);
   await shot(dash, "07-approval-queue");
   await caption(dash, "08 · Asking first", "One signature approves it. The relayer submits it, so the owner pays no gas.", 3600);
   await uncaption(dash);
   await clickText("button", "Approve");
-  await dash.waitForFunction(() => !document.body.textContent.includes("Decide in"), { timeout: 120000 });
+  await chain(dash.waitForFunction(() => !document.body.textContent.includes("Decide in"), { timeout: 120000 }));
   await hold(900);
   await consoleOpen("research agent · buying the full export");
   await line("dim", "the owner approved. the agent retries the same payment header…");
-  const d3 = await r3.outcome.retry();
+  const d3 = await chain(r3.outcome.retry());
   if (d3.outcome.kind !== "paid") throw new Error(`export after approval: ${d3.outcome.kind}`);
   const b3: any = await d3.response.json();
   await line("ok", `200 OK: ${b3.documents} documents, ${b3.sizeMb} MB`, 2400);
@@ -531,7 +575,7 @@ try {
   await uncaption(dash);
   await clickText("button", "Revoke mandate");
   await clickText("button", "Revoke now");
-  await waitText("Revoked", 120000);
+  await chain(waitText("Revoked", 120000));
   await hold(900);
   await consoleOpen("research agent · after revocation");
   const u5 = `${ledgerline.url}/v1/filings/ACME/10k-summary`;
@@ -550,7 +594,7 @@ try {
   await clickText("button", "Withdraw");
   await clickText("button", "Use the full");
   await clickText("button", "Withdraw");
-  await dash.waitForFunction(() => document.querySelector(".balance .amt")?.textContent?.startsWith("0.00"), { timeout: 120000 });
+  await chain(dash.waitForFunction(() => document.querySelector(".balance .amt")?.textContent?.startsWith("0.00"), { timeout: 120000 }));
   await hold(1200);
   await scrollToText("Activity");
   await caption(dash, "11 · The record", "Everything above is in the activity log, loaded from the vault's creation block, with a link to every transaction.", 6000);
@@ -561,7 +605,7 @@ try {
   await explore(`${explorer}/address/${dep.WarrantFactory.address}?tab=contract`, "12 · Verified", "The factory and registry source is verified on the Aevum explorer, and the vault code is open source (MIT).", { ms: 5600 });
   if (live) await shot(xp, "11-explorer-factory");
 
-  await card("Warrant", "Mandates, not keys.", `${live ? "Live on QDay Aevum testnet · tUSD8 · open source, MIT" : ""}<br><span style="font-family:var(--mono),monospace;font-size:16px;color:#767b82">factory ${dep.WarrantFactory.address}<br>vault ${vault}</span>`, 7500);
+  await card("Warrant", "Mandates, not keys.", `${live ? "Live on QDay Aevum testnet · tUSD8 · open source, MIT" : ""}<br><span style="font-family:var(--mono),monospace;font-size:16px;color:#767b82">factory ${dep.WarrantFactory.address}<br>registry ${dep.AgentRegistry.address}<br>vault ${vault}</span>`, 7500);
   const total = (Date.now() - t0) / 1000;
   console.log(`recorded ${total.toFixed(0)}s, ${frames.length} frames`);
 } catch (e) {
@@ -577,7 +621,9 @@ notes.server.close();
 const end = Date.now();
 const list: string[] = [];
 frames.forEach((f, i) => {
-  const dur = Math.max(0.01, ((frames[i + 1]?.t ?? end) - f.t) / 1000);
+  const next = frames[i + 1]?.t ?? end;
+  const slow = waits.some(([a, b]) => f.t >= a && f.t < b);
+  const dur = Math.max(0.01, (next - f.t) / 1000 / (slow ? SPEEDUP : 1));
   list.push(`file '${f.file}'`, `duration ${dur.toFixed(3)}`);
 });
 list.push(`file '${frames.at(-1).file}'`);
