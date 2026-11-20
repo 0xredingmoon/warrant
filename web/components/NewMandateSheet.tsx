@@ -42,12 +42,17 @@ export function NewMandateSheet({ vault, onClose }: { vault: Address; onClose: (
   const [merchants, setMerchants] = useState("");
   const [shown, setShown] = useState(false);
   const first = useRef<HTMLButtonElement>(null);
+  // focus the first control once on open; the parent re-renders on every poll and must not steal focus mid-typing
   useEffect(() => {
     first.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
+  }, []);
+  const latest = useRef({ busy, onClose });
+  latest.current = { busy, onClose };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !latest.current.busy && latest.current.onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
+  }, []);
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setTpl("custom");
