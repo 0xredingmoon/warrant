@@ -168,15 +168,12 @@ contract AgentRegistry is ERC721, EIP712, IAgentRegistry {
         agentId = _register("");
     }
 
-    function register(string calldata agentURI) external returns (uint256 agentId) {
-        agentId = _register(agentURI);
+    function register(string calldata uri) external returns (uint256 agentId) {
+        agentId = _register(uri);
     }
 
-    function register(string calldata agentURI, MetadataEntry[] calldata metadata)
-        external
-        returns (uint256 agentId)
-    {
-        agentId = _register(agentURI);
+    function register(string calldata uri, MetadataEntry[] calldata metadata) external returns (uint256 agentId) {
+        agentId = _register(uri);
         for (uint256 i; i < metadata.length; ++i) {
             _setMetadata(agentId, metadata[i].metadataKey, metadata[i].metadataValue);
         }
