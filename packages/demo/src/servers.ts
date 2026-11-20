@@ -6,13 +6,13 @@ import type { Address, Hex } from "viem";
 import type { Merchant } from "@warrant/merchant";
 import { paymentRequired, parseUsd } from "@warrant/sdk";
 
-const listen = (app: express.Express, port = 0): Promise<{ server: Server; url: string }> =>
+const listen = (app: express.Express, port = 0, host = "127.0.0.1"): Promise<{ server: Server; url: string }> =>
   new Promise((resolve) => {
-    const server = app.listen(port, "127.0.0.1", () => resolve({ server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
+    const server = app.listen(port, host, () => resolve({ server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
   });
 
 /** Ledgerline Data: a filings and transcripts API that charges per request, over HTTP 402. */
-export async function startLedgerline(merchant: Merchant, opts: { facilitatorUrl: string; facilitatorApiKey?: string; port?: number }) {
+export async function startLedgerline(merchant: Merchant, opts: { facilitatorUrl: string; facilitatorApiKey?: string; port?: number; host?: string }) {
   const app = express();
   app.use((_req, res, next) => {
     res.setHeader("access-control-allow-origin", "*");
@@ -69,14 +69,14 @@ export async function startLedgerline(merchant: Merchant, opts: { facilitatorUrl
     price("0.20", (r) => `Transcript archive, ${r.params.ticker}`),
     (req, res) => res.json({ ticker: req.params.ticker, quarters: 12, paid: res.locals.payment.txHash }),
   );
-  return listen(app, opts.port);
+  return listen(app, opts.port, opts.host);
 }
 
 /**
  * A third-party "analyst notes" site the agent reads while researching. The page carries an injected instruction
  * and its own 402 invoice that pays the attacker, not a merchant the owner allowed.
  */
-export async function startNotesSite(evil: Address, opts: { token: Address; chainId: number; port?: number }) {
+export async function startNotesSite(evil: Address, opts: { token: Address; chainId: number; port?: number; host?: string; publicUrl?: string }) {
   const app = express();
   let base = "";
   app.get("/notes/:ticker", (req, res) => {
@@ -101,7 +101,7 @@ export async function startNotesSite(evil: Address, opts: { token: Address; chai
     });
     res.status(402).set(headers).json(body);
   });
-  const s = await listen(app, opts.port);
-  base = s.url;
+  const s = await listen(app, opts.port, opts.host);
+  base = opts.publicUrl ?? s.url;
   return s;
 }

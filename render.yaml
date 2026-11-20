@@ -1,0 +1,30 @@
+# Render blueprint. Nothing is created until you connect the repo and apply it.
+# Free instances sleep when idle and the relayer has no persistent disk on the free plan, so its SQLite file
+# (rate limits, x402 settlements) resets on redeploy. Fine for a testnet demo; attach a disk on a paid plan to keep it.
+services:
+  - type: web
+    name: warrant-relayer
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile      # the default (last) stage is the relayer
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - { key: RELAYER_PRIVATE_KEY, sync: false }   # throwaway testnet key holding a little tQDAY
+      - { key: FACTORY_ADDRESS, value: 0x66687369d9C683aaaaDAe98b747b63eE7e0662E3 }
+      - { key: RPC_URL, value: https://rpc-test.qday.info }
+      - { key: CHAIN_ID, value: "44005" }
+      - { key: TRUSTED_IP_HEADER, value: x-forwarded-for }
+      - { key: PORT, value: "8787" }
+
+  # the dashboard is a static export: no server needed
+  - type: web
+    name: warrant-dashboard
+    runtime: static
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build && node scripts/write-web-config.mjs && node scripts/sync-web-config.mjs && pnpm --filter @warrant/web exec next build
+    staticPublishPath: web/out
+    envVars:
+      - { key: STATIC_EXPORT, value: "1" }
+      - { key: RELAYER_URL, sync: false }   # public URL of warrant-relayer, e.g. https://warrant-relayer.onrender.com
+      - { key: FACTORY_ADDRESS, value: 0x66687369d9C683aaaaDAe98b747b63eE7e0662E3 }
+      - { key: REGISTRY_ADDRESS, value: 0xD0442513fd53FA91c411939648F9edbBF2ed747d }

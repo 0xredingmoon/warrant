@@ -8,7 +8,8 @@
     "demo": "tsx src/story.ts",
     "demo:fork": "WARRANT_NETWORK=fork tsx src/story.ts",
     "demo:aevum": "WARRANT_NETWORK=aevum tsx src/story.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "serve": "tsx src/serve.ts"
   },
   "dependencies": {
     "@warrant/merchant": "workspace:*",
