@@ -49,6 +49,7 @@ const captionsLog: string[] = [];
 /** spans of real time spent waiting on the chain; the encoder plays them faster and the page shows a small badge */
 const waits: [number, number][] = [];
 const SPEEDUP = 3.5;
+const MAX_WAIT = 6; // seconds on screen per wait for the chain, at most
 async function chain<T>(p: Promise<T>): Promise<T> {
   const t = Date.now();
   const page = cur?.page;
@@ -624,11 +625,14 @@ ledgerline.server.close();
 notes.server.close();
 
 const end = Date.now();
+writeFileSync(`${FRAMES}/frames.json`, JSON.stringify({ frames, waits, end }));
 const list: string[] = [];
 frames.forEach((f, i) => {
   const next = frames[i + 1]?.t ?? end;
-  const slow = waits.some(([a, b]) => f.t >= a && f.t < b);
-  const dur = Math.max(0.01, (next - f.t) / 1000 / (slow ? SPEEDUP : 1));
+  const span = waits.find(([a, b]) => f.t >= a && f.t < b);
+  // a wait for the chain plays at SPEEDUP, and never longer than MAX_WAIT seconds on screen however slow the RPC was
+  const factor = span ? Math.min(1 / SPEEDUP, MAX_WAIT / Math.max(0.001, (span[1] - span[0]) / 1000)) : 1;
+  const dur = Math.max(0.01, ((next - f.t) / 1000) * factor);
   list.push(`file '${f.file}'`, `duration ${dur.toFixed(3)}`);
 });
 list.push(`file '${frames.at(-1).file}'`);
