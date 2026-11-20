@@ -34,9 +34,15 @@ export function encode(rec: Recording, framesDir: string, outFile: string) {
     list.push(`file '${f.file}'`, `duration ${Math.max(0.01, ((next - f.t) / 1000) * factor).toFixed(3)}`);
   });
   list.push(`file '${frames.at(-1)!.file}'`);
+  const total = frames.reduce((t, f, i) => {
+    const next = frames[i + 1]?.t ?? end;
+    const span = waits.find(([a, b]) => f.t >= a && f.t < b);
+    const factor = span ? Math.min(1 / SPEEDUP, MAX_WAIT / Math.max(0.001, (span[1] - span[0]) / 1000)) : 1;
+    return t + Math.max(0.01, ((next - f.t) / 1000) * factor);
+  }, 0);
   writeFileSync(`${framesDir}/list.txt`, list.join("\n"));
   const vf = "scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0xf2efe7,fps=30,format=yuv420p";
-  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", `${framesDir}/list.txt`, "-vf", vf, "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-movflags", "+faststart", "-an", outFile], { stdio: "inherit" });
+  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", `${framesDir}/list.txt`, "-vf", vf, "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-movflags", "+faststart", "-an", "-t", total.toFixed(3), outFile], { stdio: "inherit" });
   const dur = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", outFile]).toString().trim();
   console.log(`video ${outFile}  ${Number(dur).toFixed(1)}s`);
 }

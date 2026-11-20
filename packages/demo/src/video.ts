@@ -178,6 +178,10 @@ async function newPage(name: string) {
         return r.ok;
       },
     };
+    // with the drawer open the dashboard puts toasts bottom-left, where the caption sits: lift them above it
+    const st = document.createElement("style");
+    st.textContent = "body:has(.sheet) .toasts{bottom:150px!important}";
+    addEventListener("DOMContentLoaded", () => document.head.appendChild(st));
     // a quiet pointer ring so clicks are visible in the recording
     addEventListener("DOMContentLoaded", () => {
       const ring = document.createElement("div");
@@ -472,18 +476,18 @@ try {
   await line("cmd", `GET ${u1}`);
   const p1 = await peek(u1);
   await line("warn", `402 Payment Required: ${p1.description}, ${p1.amount} tUSD8 to Ledgerline Data (${short(p1.payTo)})`);
-  await line("dim", "signing a PaymentIntent (EIP-712) with the agent key. No gas, no funds on this key.");
+  await line("dim", "Signing a PaymentIntent (EIP-712) with the agent key. No gas, no funds on this key.");
   const r1 = await buy(u1, "ACME brief: 10-K summary");
-  if (r1.outcome.kind !== "paid") throw new Error(`10-K: ${r1.outcome.kind}`);
+  if (r1.outcome.kind !== "paid") throw new Error(`10-K: ${r1.outcome.kind} ${(r1.outcome as any).reason ?? ""}`);
   const b1: any = await r1.response.clone().json();
-  await link("ok", "paid through the vault", r1.outcome.settle?.transaction ?? r1.outcome.txHash ?? "");
+  await link("ok", "Paid through the vault", r1.outcome.settle?.transaction ?? r1.outcome.txHash ?? "");
   await line("ok", `200 OK: revenue ${b1.revenueUsdM}M, +${b1.revenueGrowthPct}% year on year`, 1800);
 
   const u2 = `${ledgerline.url}/v1/transcripts/ACME/q3`;
   await line("cmd", `GET ${u2}`);
   const r2 = await buy(u2, "ACME brief: Q3 transcript");
   if (r2.outcome.kind !== "paid") throw new Error(`transcript: ${r2.outcome.kind}`);
-  await link("ok", "paid 0.25 tUSD8", r2.outcome.settle?.transaction ?? "");
+  await link("ok", "Paid 0.25 tUSD8", r2.outcome.settle?.transaction ?? "");
   await line("ok", "200 OK: transcript delivered", 1200);
 
   await focus(dash);
@@ -510,13 +514,13 @@ try {
   await line("cmd", `GET ${m[1]}`);
   const pe = await peek(m[1]);
   await line("warn", `402 Payment Required: ${pe.amount} tUSD8 to ${short(pe.payTo)}  (not Ledgerline)`);
-  await line("dim", "signing the payment as instructed…");
+  await line("dim", "Signing the payment as instructed…");
   const re = await buy(m[1], "notes page instruction");
   if (re.outcome.kind !== "refused") throw new Error(`injection should be refused, got ${re.outcome.kind}`);
-  await line("bad", `refused by the vault: ${re.outcome.check.message}`, 1200);
-  await link("bad", "recorded on-chain (PaymentRefused)", re.outcome.txHash ?? "");
+  await line("bad", `Refused by the vault: ${re.outcome.check.message}`, 1200);
+  await link("bad", "Recorded on-chain (PaymentRefused)", re.outcome.txHash ?? "");
   const evilBal = await getTokenBalance(publicClient, TOKEN, evil);
-  await line("ok", `attacker balance: ${formatUsd(evilBal)} tUSD8`, 2200);
+  await line("ok", `Attacker balance: ${formatUsd(evilBal)} tUSD8`, 2200);
   const refusalTx = re.outcome.txHash!;
   await shot(stage, "04-agent-console-injection");
 
@@ -539,9 +543,9 @@ try {
   await line("cmd", `GET ${u3}`);
   const r3 = await buy(u3, "ACME brief: full export", 1);
   if (r3.outcome.kind !== "pending") throw new Error(`export should wait, got ${r3.outcome.kind}`);
-  await link("warn", `queued for the owner (pending #${r3.outcome.pendingId})`, r3.outcome.settle?.queueTransaction ?? "");
+  await link("warn", `Queued for the owner (pending #${r3.outcome.pendingId})`, r3.outcome.settle?.queueTransaction ?? "");
   const early = await r3.outcome.retry();
-  await line("dim", `retrying the same payment: HTTP ${early.response.status} approval_required. Nothing is delivered until the owner decides.`, 2200);
+  await line("dim", `Retrying the same payment: HTTP ${early.response.status} approval_required. Nothing is delivered until the owner decides.`, 2200);
 
   await focus(dash);
   await scrollTop();
@@ -555,7 +559,7 @@ try {
   await chain(dash.waitForFunction(() => !document.body.textContent.includes("Decide in"), { timeout: 120000 }));
   await hold(900);
   await consoleOpen("research agent · buying the full export");
-  await line("dim", "the owner approved. the agent retries the same payment header…");
+  await line("dim", "The owner approved. The agent retries the same payment header…");
   const d3 = await chain(r3.outcome.retry());
   if (d3.outcome.kind !== "paid") throw new Error(`export after approval: ${d3.outcome.kind}`);
   const b3: any = await d3.response.json();
@@ -569,8 +573,8 @@ try {
   await line("cmd", `GET ${u4}`);
   const r4 = await buy(u4, "ACME brief: transcript archive");
   if (r4.outcome.kind !== "refused" || r4.outcome.check.code !== Reason.ExceedsPeriodCap) throw new Error(`cap: ${r4.outcome.kind}`);
-  await line("bad", `refused by the vault: ${r4.outcome.check.message}`, 800);
-  await link("bad", "recorded on-chain", r4.outcome.txHash ?? "", 0);
+  await line("bad", `Refused by the vault: ${r4.outcome.check.message}`, 800);
+  await link("bad", "Recorded on-chain", r4.outcome.txHash ?? "", 0);
   await hold(1600);
   await focus(dash);
   await scrollTop();
@@ -593,8 +597,8 @@ try {
   await line("cmd", `GET ${u5}`);
   const r5 = await buy(u5, "after revoke");
   if (r5.outcome.kind !== "refused") throw new Error(`revoked: ${r5.outcome.kind}`);
-  await line("bad", `refused by the vault: ${r5.outcome.check.message}`, 800);
-  await link("bad", "recorded on-chain", r5.outcome.txHash ?? "");
+  await line("bad", `Refused by the vault: ${r5.outcome.check.message}`, 800);
+  await link("bad", "Recorded on-chain", r5.outcome.txHash ?? "");
   await hold(1400);
 
   /* 10. withdraw + wrap */
