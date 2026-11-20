@@ -93,7 +93,7 @@ pnpm demo:aevum                  # needs ~2 tUSD8 and ~0.05 tQDAY; writes .demo/
 ```
 
 The demo funds a throwaway relayer and merchant from the deployer, keeps their keys in `.demo/` (gitignored)
-and returns unspent tUSD8 to the owner.
+and withdraws the vault's unspent tUSD8 back to the owner at the end (the merchant keeps what it was paid).
 
 ### Relayer
 
@@ -211,7 +211,7 @@ everything at approval time) or reverts with `PaymentRejected(reason)`. `check(i
 reason without reverting.
 
 Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k, check 11k (see
-[`docs/gas-report.md`](docs/gas-report.md)). At about 1 gwei a payment is roughly 0.0002 tQDAY.
+[`docs/gas-report.md`](docs/gas-report.md)). At about 1 gwei a payment costs roughly 0.00015 to 0.0002 tQDAY.
 
 ## Aevum specifics
 
@@ -241,7 +241,6 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
 - The relayer's rate limits and the merchant's invoice store are in memory.
 - The dashboard caches activity per vault in `localStorage` and reads from the factory's deployment block, so a first load
   scans the range since deployment in 1,000-block chunks.
-- A merchant cannot be given a different payee per invoice; the payee is fixed per mandate allowlist entry.
 - tUSD8 is admin-pausable; a paused token makes payments revert without changing state.
 - Not audited. Testnet tokens only.
 

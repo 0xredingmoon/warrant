@@ -53,7 +53,7 @@ describe("intents", () => {
     const agent = privateKeyToAccount(generatePrivateKey());
     const intent = buildIntent({ mandateId: 1n, merchant: "0xf2b01C5b12DaAe6adAa0a876065D303302F4b4Ae", amount: parseUsd("0.15"), context: "10-K summary" });
     const signature = await signIntent({ signer: agent, chainId: 44005, vault, intent });
-    const recover = (chainId: number, v: typeof vault) =>
+    const recover = (chainId: number, v: `0x${string}`) =>
       recoverTypedDataAddress({ domain: vaultDomain(chainId, v), types: paymentIntentTypes, primaryType: "PaymentIntent", message: intent, signature });
     expect(await recover(44005, vault)).toBe(agent.address);
     expect(await recover(1, vault)).not.toBe(agent.address);
