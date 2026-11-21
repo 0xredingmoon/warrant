@@ -3,6 +3,7 @@ import type { Address } from "viem";
 import { useWallet } from "@/lib/wallet";
 import { approvePending, expirePending, formatUsd, rejectPending, relayApprove, signApproval, type Mandate, type Pending } from "@warrant/sdk";
 import { CHAIN_ID, RELAYER_URL } from "@/lib/config";
+import { useRelayer } from "@/lib/relayer";
 import { addrLink, short, until } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
 import { useTx } from "@/lib/tx";
@@ -11,12 +12,13 @@ export function PendingPanel({ vault, vaultName, pending, mandates, loading }: {
   const { address } = useWallet();
   const { clients, wallet, ready } = useClients();
   const { run, busy } = useTx();
+  const { online: relayerOnline } = useRelayer();
   const now = Math.floor(Date.now() / 1000);
   const list = (pending ?? []).filter((p) => p.status === "Open");
 
   async function approve(p: Pending) {
     if (!clients || !wallet || !address) return;
-    if (RELAYER_URL) {
+    if (RELAYER_URL && relayerOnline) {
       await run(`Approve ${formatUsd(p.amount)} tUSD8`, async () => {
         const deadline = BigInt(now + 900);
         const signature = await signApproval({ signer: wallet as any, chainId: CHAIN_ID, vault, pendingId: p.id, deadline });

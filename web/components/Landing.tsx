@@ -1,5 +1,6 @@
 "use client";
 import { useWallet } from "@/lib/wallet";
+import { ChainStatus } from "./ChainStatus";
 import { ConnectButton } from "./Header";
 
 const decisions: { what: string; amt: string; verdict: "ok" | "stop" | "warn"; label: string; why?: string }[] = [
@@ -30,6 +31,7 @@ export function Landing() {
             ) : (
               <span className="hint">Injected wallet only. Nothing is sent until you confirm.</span>
             )}
+            <ChainStatus />
           </div>
         </div>
         <aside className="ticket" aria-label="Example decisions from a recorded run">

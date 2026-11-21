@@ -66,7 +66,7 @@ relayer rate-limits refusals per vault and per day. A plain `pay()` call still r
 | `packages/mcp` | `@warrant/mcp`: MCP server with `check_mandate` and `pay_with_mandate` |
 | `packages/demo` | The scenario above, runnable on a fork or on Aevum; `src/serve.ts` runs the demo merchant and notes site as long-lived services; `src/video.ts` records the demo video |
 | `web/` | Next.js owner dashboard (viem, injected wallet); builds to static files |
-| `Dockerfile`, `docker-compose.yml`, `render.yaml`, `fly.toml`, `railway.json` | Container and hosting configs, see [Docker and hosting](#docker-and-hosting) |
+| `Dockerfile`, `docker-compose.yml`, `deploy/hf-space`, `render.yaml`, `fly.toml`, `railway.json` | Container and hosting configs, see [Live demo](#live-demo) and [Docker and hosting](#docker-and-hosting) |
 | `docs/` | [`DESIGN.md`](docs/DESIGN.md), [`BUSINESS.md`](docs/BUSINESS.md), [`gas-report.md`](docs/gas-report.md), [`live-run.md`](docs/live-run.md) |
 
 ## Run it
@@ -217,6 +217,21 @@ facilitator settles it. A stock x402 client cannot pay with it; `x402Fetch` from
 passes `facilitatorUrl` to `paywall()` answers both the native flow and x402. Settling the same payment twice returns
 the first result, which is how a payment that waited for the owner is collected after approval.
 
+## Live demo
+
+- Dashboard (GitHub Pages): [https://srmohtasham123.github.io/warrant/](https://srmohtasham123.github.io/warrant/)
+- Relayer (Hugging Face Space, free CPU): [https://redingmoonq-warrant-relayer.hf.space](https://redingmoonq-warrant-relayer.hf.space) · [Space page](https://huggingface.co/spaces/redingmoonq/warrant-relayer)
+
+The dashboard reads the Aevum testnet directly (factory, vaults, balances). Gasless deposits go through the relayer.
+The Hugging Face free CPU Space sleeps when idle; the first request after that can take about a minute to wake it.
+If the relayer is still asleep, the page shows "Relayer offline" and deposits or approvals still work from your own wallet.
+
+To redeploy the relayer (throwaway testnet key only):
+
+```bash
+HF_TOKEN=… HF_SPACE=redingmoonq/warrant-relayer ./scripts/deploy-hf-space.sh
+```
+
 ## Docker and hosting
 
 ```bash
@@ -226,13 +241,10 @@ docker compose up --build               # dashboard :8080, relayer + x402 facili
 
 `Dockerfile` has three targets (`web`: static dashboard behind nginx, whose entrypoint writes `/config.js` from the
 environment; `demo`: the merchant and notes site; default: the relayer). SQLite files live on volumes.
-[`render.yaml`](render.yaml), [`fly.toml`](fly.toml) and [`railway.json`](railway.json) deploy the relayer and the static
-dashboard. Apply the Render blueprint after connecting this repo: paste a throwaway testnet `RELAYER_PRIVATE_KEY` (the
-relayer pays gas) and set `RELAYER_URL` on the dashboard service to the relayer's public URL, e.g.
-`https://warrant-relayer.onrender.com`. The relayer binds `0.0.0.0` and allows the dashboard origin (CORS is `*`;
-auth is the signed intent). The static dashboard is built with Node 24 and `STATIC_EXPORT=1`. These configs and the
-compose file have not been applied on a hosting provider; the Render static build command and a production-mode
-relayer start have been run locally with Node (Docker is not required for that check).
+[`deploy/hf-space`](deploy/hf-space) is the Hugging Face Space image (port 7860). [`render.yaml`](render.yaml),
+[`fly.toml`](fly.toml) and [`railway.json`](railway.json) are alternative host configs. The Render blueprint has not
+been applied (that host asked for a payment card). The GitHub Pages build, the Render static build command, and a
+production-mode relayer start have been run locally with Node.
 
 ## Demo video
 

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 import { deposit, formatUsd, parseUsd, relayDeposit, signReceiveWithAuthorization, withdraw, type VaultState } from "@warrant/sdk";
 import { CHAIN_ID, RELAYER_URL, TOKEN } from "@/lib/config";
+import { RelayerNotice, useRelayer } from "@/lib/relayer";
 import { publicClient } from "@/lib/chain";
 import { cleanAmount, txLink } from "@/lib/format";
 import { useClients } from "@/lib/hooks";
@@ -33,12 +34,17 @@ export function BalancePanel({ vault, state }: { vault: Address; state?: VaultSt
   const { clients, wallet, ready } = useClients();
   const { run, busy } = useTx();
   const mine = useWalletTokenBalance(address);
+  const { online: relayerOnline } = useRelayer();
   const [mode, setMode] = useState<"deposit" | "withdraw" | null>(null);
   const [amt, setAmt] = useState("");
-  const [gasless, setGasless] = useState(!!RELAYER_URL);
+  const [gasless, setGasless] = useState(false);
   const [pin, setPin] = useState<Pin | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
   const submitting = useRef(false);
+
+  useEffect(() => {
+    setGasless(relayerOnline === true);
+  }, [relayerOnline]);
 
   // what to show: the pinned figure until the chain read agrees with it (or 60 s pass)
   const pinned = pin && Date.now() < pin.until ? pin : null;
@@ -68,8 +74,8 @@ export function BalancePanel({ vault, state }: { vault: Address; state?: VaultSt
     const dir = mode === "withdraw" ? "out" : "in";
     const before = { vault: state?.balance ?? 0n, wallet: mine.data };
     const amount = value;
-    const title = mode === "withdraw" ? `Withdraw ${formatUsd(amount)} tUSD8` : `Deposit ${formatUsd(amount)} tUSD8${gasless && RELAYER_URL ? " (no gas)" : ""}`;
-    const relayed = mode === "deposit" && gasless && !!RELAYER_URL;
+    const title = mode === "withdraw" ? `Withdraw ${formatUsd(amount)} tUSD8` : `Deposit ${formatUsd(amount)} tUSD8${gasless && relayerOnline && RELAYER_URL ? " (no gas)" : ""}`;
+    const relayed = mode === "deposit" && gasless && relayerOnline === true && !!RELAYER_URL;
     setFlow({ label: title, steps: relayed ? DEPOSIT_STEPS : DIRECT_STEPS, stage: 0 });
     const adv = (stage: number, hash?: Hex) => setFlow((f) => (f ? { ...f, stage, hash: hash ?? f.hash } : f));
     try {
@@ -168,7 +174,7 @@ export function BalancePanel({ vault, state }: { vault: Address; state?: VaultSt
                 Use the full {formatUsd(limit)}
               </button>
             )}
-            {mode === "deposit" && RELAYER_URL && (
+            {mode === "deposit" && relayerOnline && RELAYER_URL && (
               <label className="check">
                 <input type="checkbox" checked={gasless} onChange={(e) => setGasless(e.target.checked)} />
                 <span>
@@ -176,6 +182,7 @@ export function BalancePanel({ vault, state }: { vault: Address; state?: VaultSt
                 </span>
               </label>
             )}
+            {mode === "deposit" && relayerOnline !== true && <RelayerNotice />}
             {mode === "deposit" && !gasless && <p className="hint">Two transactions: an allowance, then the deposit.</p>}
             <div className="row">
               <button className="btn" disabled={!canSubmit} onClick={submit}>

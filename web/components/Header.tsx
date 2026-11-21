@@ -1,5 +1,6 @@
 "use client";
 import { formatEther } from "viem";
+import { asset } from "@/lib/config";
 import { short } from "@/lib/format";
 import { useGasBalance } from "@/lib/queries";
 import { useWallet } from "@/lib/wallet";
@@ -34,7 +35,7 @@ export function Header() {
   return (
     <header className="bar">
       <div className="bar-in">
-        <a className="wordmark" href="/">
+        <a className="wordmark" href={asset("/")}>
           Warrant<small>Aevum testnet</small>
         </a>
         <span className={`net ${wrongNetwork ? "bad" : ""}`} role="status">
