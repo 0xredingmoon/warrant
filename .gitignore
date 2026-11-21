@@ -17,3 +17,6 @@ data/
 *.db
 *.db-shm
 *.db-wal
+
+# corepack shims used by the Render static build
+.bin/

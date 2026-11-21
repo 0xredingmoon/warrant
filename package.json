@@ -23,5 +23,10 @@
     "web:build": "pnpm --filter @warrant/web build",
     "web:static": "STATIC_EXPORT=1 pnpm --filter @warrant/web exec next build",
     "web:serve": "node scripts/serve-web.mjs"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

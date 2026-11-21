@@ -28,7 +28,7 @@ services:
     runtime: static
     # STATIC_EXPORT must be set for `output: "export"`. RELAYER_URL is written to /config.js and also baked in as
     # NEXT_PUBLIC_RELAYER_URL so the pre-rendered HTML matches the client (no hydration mismatch).
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build && node scripts/write-web-config.mjs && node scripts/sync-web-config.mjs && NEXT_PUBLIC_RELAYER_URL="$RELAYER_URL" NEXT_PUBLIC_FACTORY="$FACTORY_ADDRESS" NEXT_PUBLIC_REGISTRY="$REGISTRY_ADDRESS" pnpm --filter @warrant/web exec next build
+    buildCommand: mkdir -p .bin && corepack enable --install-directory ./.bin && export PATH="$(pwd)/.bin:$PATH" && pnpm install --frozen-lockfile && pnpm build && node scripts/write-web-config.mjs && node scripts/sync-web-config.mjs && NEXT_PUBLIC_RELAYER_URL="$RELAYER_URL" NEXT_PUBLIC_FACTORY="$FACTORY_ADDRESS" NEXT_PUBLIC_REGISTRY="$REGISTRY_ADDRESS" pnpm --filter @warrant/web exec next build
     staticPublishPath: web/out
     envVars:
       - { key: NODE_VERSION, value: "24.22.1" }
