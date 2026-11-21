@@ -20,6 +20,40 @@ export function openDb(path: string): Db {
   return db;
 }
 
+/**
+ * Open `path`, then fall back to `/tmp/relayer.db` and finally `:memory:` if the
+ * filesystem is read-only (serverless hosts). Rate limits and x402 settlement
+ * rows in an ephemeral or in-memory store are lost on a cold start; on-chain
+ * `invoiceRef` idempotency is the real guard against double payment.
+ */
+export function openDbWithFallback(path: string): { db: Db; path: string } {
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  for (const c of [path, "/tmp/relayer.db", ":memory:"]) {
+    if (!seen.has(c)) {
+      seen.add(c);
+      candidates.push(c);
+    }
+  }
+  let lastErr: unknown;
+  for (const candidate of candidates) {
+    try {
+      const db = openDb(candidate);
+      if (candidate !== path) {
+        console.warn(`[store] could not open ${path} (${errMessage(lastErr)}); using ${candidate}`);
+      }
+      return { db, path: candidate };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err ?? "unknown error");
+}
+
 /** Run `fn` inside BEGIN IMMEDIATE ... COMMIT (rolls back if it throws). Synchronous, so it is atomic in one process. */
 export function transaction<T>(db: Db, fn: () => T): T {
   db.exec("BEGIN IMMEDIATE");

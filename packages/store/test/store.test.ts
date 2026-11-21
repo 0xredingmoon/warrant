@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { RateStore, openDb } from "../src";
+import { RateStore, openDb, openDbWithFallback } from "../src";
 
 describe("RateStore", () => {
   it("limits per key inside a sliding window and frees up afterwards", () => {
@@ -41,3 +41,18 @@ describe("RateStore", () => {
     }
   });
 });
+  it("falls back to /tmp or memory when the requested path is not writable", () => {
+    const dir = mkdtempSync(join(tmpdir(), "warrant-store-ro-"));
+    try {
+      const blocked = join(dir, "blocked");
+      mkdirSync(blocked, { mode: 0o500 });
+      const { db, path } = openDbWithFallback(join(blocked, "r.db"));
+      expect(path === "/tmp/relayer.db" || path === ":memory:").toBe(true);
+      const rates = new RateStore(db);
+      expect(rates.take("ip", `fallback-${Date.now()}-${Math.random()}`, 1, 60_000)).toBe(true);
+      db.close();
+    } finally {
+      chmodSync(join(dir, "blocked"), 0o700);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });

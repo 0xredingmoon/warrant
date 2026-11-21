@@ -66,7 +66,7 @@ relayer rate-limits refusals per vault and per day. A plain `pay()` call still r
 | `packages/mcp` | `@warrant/mcp`: MCP server with `check_mandate` and `pay_with_mandate` |
 | `packages/demo` | The scenario above, runnable on a fork or on Aevum; `src/serve.ts` runs the demo merchant and notes site as long-lived services; `src/video.ts` records the demo video |
 | `web/` | Next.js owner dashboard (viem, injected wallet); builds to static files |
-| `Dockerfile`, `docker-compose.yml`, `deploy/hf-space`, `render.yaml`, `fly.toml`, `railway.json` | Container and hosting configs, see [Live demo](#live-demo) and [Docker and hosting](#docker-and-hosting) |
+| `Dockerfile`, `docker-compose.yml`, `api/`, `vercel.json`, `deploy/hf-space`, `render.yaml`, `fly.toml`, `railway.json` | Container and hosting configs, see [Live demo](#live-demo) and [Docker and hosting](#docker-and-hosting) |
 | `docs/` | [`DESIGN.md`](docs/DESIGN.md), [`BUSINESS.md`](docs/BUSINESS.md), [`gas-report.md`](docs/gas-report.md), [`live-run.md`](docs/live-run.md) |
 
 ## Run it
@@ -79,7 +79,7 @@ pnpm install
 forge build && pnpm abis        # compile contracts, regenerate packages/sdk/src/abis.ts
 pnpm build                       # sdk, relayer, merchant, mcp
 forge test                       # 162 tests; fork tests need https://rpc-test.qday.info
-pnpm -r typecheck && pnpm -r test      # 56 unit tests (store 3, sdk 20, mcp 4, merchant 12, relayer 17)
+pnpm -r typecheck && pnpm -r test      # vitest: store, sdk, mcp, merchant, relayer (see Test coverage)
 ```
 
 ### On a local fork (nothing touches the real network)
@@ -118,7 +118,7 @@ RELAYER_PRIVATE_KEY=0x… FACTORY_ADDRESS=0x66687369d9C683aaaaDAe98b747b63eE7e06
 | `RELAYER_API_KEY` | none | If set, every POST needs `Authorization: Bearer …`. |
 | `RATE_PER_MINUTE_IP`, `RATE_PER_MINUTE_VAULT`, `DAILY_TX_CAP` | `60`, `30`, `500` | Limits, counted in SQLite so they survive a restart. |
 | `REFUSALS_PER_HOUR_VAULT`, `DAILY_REFUSAL_CAP` | `20`, `200` | Caps on on-chain refusals the relayer will pay gas for. |
-| `DATABASE_PATH` | `./data/relayer.db` | SQLite file (limits and x402 settlements). One process per file. |
+| `DATABASE_PATH` | `./data/relayer.db` (or `/tmp/relayer.db` on Vercel/Netlify) | SQLite file (limits and x402 settlements). One process per file. Serverless hosts fall back to `/tmp`, then to in-memory, if the path is not writable. On-chain `invoiceRef` is the real payment idempotency guard. |
 | `INDEXER_URL` | the explorer | Blockscout-compatible API used to find a vault's logs quickly. |
 | `TRUSTED_IP_HEADER` | none | e.g. `x-forwarded-for` behind a proxy. |
 
@@ -221,19 +221,40 @@ the first result, which is how a payment that waited for the owner is collected 
 
 - Dashboard (GitHub Pages): [https://srmohtasham123.github.io/warrant/](https://srmohtasham123.github.io/warrant/)
 
-The dashboard reads the Aevum testnet directly (factory, vaults, balances). The gasless relayer is not public yet:
-Hugging Face now requires a paid PRO subscription to host Docker Spaces, even on the otherwise-free `cpu-basic`
-hardware, and no paid plan was started. Until a card-free host is available, the page shows "Relayer offline" and
-deposits or approvals still work from your own wallet.
+The dashboard reads the Aevum testnet directly (factory, vaults, balances). The gasless relayer is not public yet;
+the page shows "Relayer offline" and deposits or approvals still work from your own wallet. The intended card-free
+host is [Vercel Hobby](https://vercel.com/pricing): `$0`, no billing cycle, and exceeding a limit pauses the feature
+rather than charging ([Hobby plan docs](https://vercel.com/docs/plans/hobby)). Sign-up is GitHub or email OTP with
+no payment step ([account docs](https://vercel.com/docs/accounts)). Independently checked on 15 Nov 2026:
+[freetier.wiki/vercel](https://freetier.wiki/services/vercel/) ("Card required: No"). Hobby is for non-commercial
+personal use, which this demo is.
 
-The image and script in [`deploy/hf-space`](deploy/hf-space) and [`scripts/deploy-hf-space.sh`](scripts/deploy-hf-space.sh)
-are ready if a Docker Space can be created later:
+The relayer runs as one Node.js function (`api/[[...path]].ts`) wrapping the same Express app, with SQLite on
+`/tmp` (ephemeral per instance; on-chain `invoiceRef` is the real idempotency guard). Deploy, once a Hobby token
+is available:
+
+```bash
+# 1. Sign up at https://vercel.com/signup with GitHub (Hobby, no card).
+# 2. Create a token named warrant-relayer at https://vercel.com/account/tokens
+#    (scope: Full Account; expiry after mid-December 2026 is fine).
+# 3. Export it and run:
+VERCEL_TOKEN=… ./scripts/deploy-vercel-relayer.sh
+```
+
+Then set the GitHub Pages config's `RELAYER_URL` to the printed origin (for example
+`https://warrant-relayer.vercel.app`) and republish the dashboard.
+
+A fallback, also `$0` and with no credit card, is [Netlify Free](https://www.netlify.com/pricing/)
+([announcement](https://www.netlify.com/blog/introducing-netlify-free-plan/): "Deploy with no credit card required
+and no fees. Ever."). It uses a similar serverless function model, with a 300-credit monthly hard cap after which
+the site is suspended until the next calendar month.
+
+Hugging Face Docker Spaces now require a paid PRO subscription, even on `cpu-basic`, so that path was not started.
+The image and script in [`deploy/hf-space`](deploy/hf-space) remain if a free Docker Space becomes available later:
 
 ```bash
 HF_TOKEN=… HF_SPACE=redingmoonq/warrant-relayer ./scripts/deploy-hf-space.sh
 ```
-
-Then set the GitHub Pages build's `RELAYER_URL` to `https://redingmoonq-warrant-relayer.hf.space` and republish the dashboard.
 
 ## Docker and hosting
 
@@ -244,9 +265,12 @@ docker compose up --build               # dashboard :8080, relayer + x402 facili
 
 `Dockerfile` has three targets (`web`: static dashboard behind nginx, whose entrypoint writes `/config.js` from the
 environment; `demo`: the merchant and notes site; default: the relayer). SQLite files live on volumes.
+[`api/`](api/) and [`vercel.json`](vercel.json) are the Vercel Hobby function entry (see [Live demo](#live-demo)).
 [`deploy/hf-space`](deploy/hf-space) is the Hugging Face Space image (port 7860). [`render.yaml`](render.yaml),
 [`fly.toml`](fly.toml) and [`railway.json`](railway.json) are alternative host configs. The Render blueprint has not
-been applied (that host asked for a payment card). The GitHub Pages build, the Render static build command, and a
+been applied (that host asked for a payment card). Fly.io's trial requires a card to continue. Railway has a card-free
+Free plan and a 30-day trial ([docs](https://docs.railway.com/pricing/free-plan)), but Free services sleep and share a
+$1 monthly usage budget that can run out. The GitHub Pages build, the Render static build command, and a
 production-mode relayer start have been run locally with Node.
 
 ## Demo video
@@ -305,7 +329,7 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
 | Suite | Count | What it covers |
 | --- | --- | --- |
 | Foundry | 162 | Every reason code and cap edge, the rolling window across bucket boundaries, `payOrRefuse` and `PaymentRefused`, signature binding, approval queue, funding (incl. reentrancy), factory and registry, fuzzing and invariants, Shanghai opcode scan, deploy script, fork tests on the real tUSD8 |
-| vitest | 59 | store (3), sdk (22), mcp (4), merchant (13), relayer (17): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), merchant 402 and x402 flows, MCP tools over an in-memory transport |
+| vitest | 63 | store (4), sdk (22), mcp (4), merchant (13), relayer (20): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), serverless db and IP defaults, store fallback when the filesystem is read-only, merchant 402 and x402 flows, MCP tools over an in-memory transport |
 | Scenario | 1 | `pnpm demo:fork` and `pnpm demo:aevum` assert every step's outcome |
 | UI | 3 | `web/e2e/smoke.mjs` drives the dashboard on the fork with a mock wallet; `web/e2e/wallet-states.mjs` covers wallet edge cases; `web/e2e/live-readonly.mjs` reads a live vault |
 

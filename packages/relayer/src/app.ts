@@ -14,7 +14,7 @@ import {
   type CheckResult,
   type PaymentIntent,
 } from "@warrant/sdk";
-import { RateStore, openDb } from "@warrant/store";
+import { RateStore, openDbWithFallback } from "@warrant/store";
 import { z } from "zod";
 import { isLocalRpc, PUBLIC_DEV_KEYS, type RelayerConfig } from "./config";
 import { SettlementStore } from "./settlements";
@@ -101,7 +101,10 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
   const rpcTransport = http(cfg.rpcUrl, { timeout: 8_000, retryCount: 4, retryDelay: 300 });
   const publicClient = createPublicClient({ chain, transport: rpcTransport });
 
-  const db = openDb(cfg.dbPath);
+  const { db, path: dbPath } = openDbWithFallback(cfg.dbPath);
+  if (dbPath !== cfg.dbPath) {
+    console.warn(`[relayer] database path ${cfg.dbPath} was not writable; using ${dbPath}`);
+  }
   const rates = new RateStore(db);
   const settlements = new SettlementStore(db);
   rates.prune();

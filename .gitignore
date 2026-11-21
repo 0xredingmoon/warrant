@@ -20,3 +20,6 @@ data/
 
 # corepack shims used by the Render static build
 .bin/
+
+# Vercel CLI local project link (org/project ids)
+.vercel/

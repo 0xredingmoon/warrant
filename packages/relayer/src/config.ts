@@ -44,12 +44,35 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Relayer
     ratePerMinuteIp: Number(env.RATE_PER_MINUTE_IP ?? 60),
     ratePerMinuteVault: Number(env.RATE_PER_MINUTE_VAULT ?? 30),
     dailyTxCap: Number(env.DAILY_TX_CAP ?? 500),
-    dbPath: env.DATABASE_PATH ?? "./data/relayer.db",
+    dbPath: defaultDatabasePath(env),
     refusalsPerHourVault: Number(env.REFUSALS_PER_HOUR_VAULT ?? 20),
     dailyRefusalCap: Number(env.DAILY_REFUSAL_CAP ?? 200),
     indexerUrl: env.INDEXER_URL || env.EXPLORER_URL || "https://explorer-test.qday.info",
-    trustedIpHeader: env.TRUSTED_IP_HEADER || undefined,
+    trustedIpHeader: defaultTrustedIpHeader(env),
   };
+}
+
+/** True on Vercel, Netlify, AWS Lambda, and similar serverless hosts. */
+export function isServerlessHost(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env.VERCEL || env.NETLIFY || env.AWS_LAMBDA_FUNCTION_NAME || env.FUNCTION_TARGET);
+}
+
+/**
+ * SQLite path. On a serverless host the function filesystem is read-only except
+ * `/tmp`, which is ephemeral per instance. That is fine: rate limits may reset
+ * on a cold start, and on-chain `invoiceRef` is the real payment idempotency guard.
+ */
+export function defaultDatabasePath(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.DATABASE_PATH) return env.DATABASE_PATH;
+  if (isServerlessHost(env)) return "/tmp/relayer.db";
+  return "./data/relayer.db";
+}
+
+/** Trust the platform's forwarded-for header when we are behind one. */
+export function defaultTrustedIpHeader(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (env.TRUSTED_IP_HEADER) return env.TRUSTED_IP_HEADER;
+  if (isServerlessHost(env)) return "x-forwarded-for";
+  return undefined;
 }
 
 /** anvil/hardhat well-known keys: never allowed against a non-local RPC. */
