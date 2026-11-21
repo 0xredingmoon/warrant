@@ -1,15 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "installCommand": "corepack enable --install-directory ./.bin && export PATH=\"$PWD/.bin:$PATH\" && pnpm install --frozen-lockfile",
+  "framework": "express",
   "buildCommand": "pnpm --filter @warrant/sdk --filter @warrant/store --filter @warrant/relayer build",
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/api/$1" }
-  ],
   "functions": {
-    "api/[[...path]].ts": {
+    "server.ts": {
       "maxDuration": 180,
-      "memory": 1024
+      "memory": 1024,
+      "includeFiles": "packages/{relayer,sdk,store}/**"
     }
   }
 }

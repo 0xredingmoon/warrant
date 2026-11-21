@@ -4,6 +4,7 @@
   "private": true,
   "license": "MIT",
   "description": "Spending mandates for AI agents on stablecoins (Aevum Builder Challenge #1)",
+  "type": "module",
   "packageManager": "pnpm@10.34.6",
   "engines": {
     "node": ">=22.13 <25"
@@ -28,5 +29,9 @@
     "onlyBuiltDependencies": [
       "esbuild"
     ]
+  },
+  "dependencies": {
+    "@warrant/relayer": "workspace:*",
+    "express": "^4.21.0"
   }
 }

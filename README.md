@@ -220,40 +220,26 @@ the first result, which is how a payment that waited for the owner is collected 
 ## Live demo
 
 - Dashboard (GitHub Pages): [https://srmohtasham123.github.io/warrant/](https://srmohtasham123.github.io/warrant/)
+- Relayer (Vercel Hobby): [https://warrant-relayer.vercel.app](https://warrant-relayer.vercel.app) — [`/health`](https://warrant-relayer.vercel.app/health)
 
-The dashboard reads the Aevum testnet directly (factory, vaults, balances). The gasless relayer is not public yet;
-the page shows "Relayer offline" and deposits or approvals still work from your own wallet. The intended card-free
-host is [Vercel Hobby](https://vercel.com/pricing): `$0`, no billing cycle, and exceeding a limit pauses the feature
-rather than charging ([Hobby plan docs](https://vercel.com/docs/plans/hobby)). Sign-up is GitHub or email OTP with
-no payment step ([account docs](https://vercel.com/docs/accounts)). Independently checked on 15 Nov 2026:
-[freetier.wiki/vercel](https://freetier.wiki/services/vercel/) ("Card required: No"). Hobby is for non-commercial
-personal use, which this demo is.
+The dashboard reads the Aevum testnet directly (factory, vaults, balances) and probes the public relayer for gasless deposits and approvals. The relayer runs as one Express function on the [Vercel Hobby](https://vercel.com/pricing) plan (`$0`, no credit card, no billing cycle; over a limit the feature pauses rather than charging). SQLite lives on `/tmp` and is ephemeral per instance; on-chain `invoiceRef` is the real payment idempotency guard.
 
-The relayer runs as one Node.js function (`api/[[...path]].ts`) wrapping the same Express app, with SQLite on
-`/tmp` (ephemeral per instance; on-chain `invoiceRef` is the real idempotency guard). Deploy, once a Hobby token
-is available:
+A fallback, also `$0` and with no credit card, is [Netlify Free](https://www.netlify.com/pricing/). Hugging Face Docker Spaces need a paid PRO subscription, so that path was not started. The image and script in [`deploy/hf-space`](deploy/hf-space) remain if a free Docker Space becomes available later:
 
 ```bash
-# 1. Sign up at https://vercel.com/signup with GitHub (Hobby, no card).
-# 2. Create a token named warrant-relayer at https://vercel.com/account/tokens
-#    (scope: Full Account; expiry after mid-December 2026 is fine).
-# 3. Export it and run:
+# Relayer (needs a Hobby token; the script never prints the key or the token)
 VERCEL_TOKEN=… ./scripts/deploy-vercel-relayer.sh
+
+# Optional, if a free Hugging Face Docker Space is available later
+HF_TOKEN=… HF_SPACE=redingmoonq/warrant-relayer ./scripts/deploy-hf-space.sh
 ```
 
-Then set the GitHub Pages config's `RELAYER_URL` to the printed origin (for example
-`https://warrant-relayer.vercel.app`) and republish the dashboard.
-
-A fallback, also `$0` and with no credit card, is [Netlify Free](https://www.netlify.com/pricing/)
-([announcement](https://www.netlify.com/blog/introducing-netlify-free-plan/): "Deploy with no credit card required
-and no fees. Ever."). It uses a similar serverless function model, with a 300-credit monthly hard cap after which
-the site is suspended until the next calendar month.
-
-Hugging Face Docker Spaces now require a paid PRO subscription, even on `cpu-basic`, so that path was not started.
-The image and script in [`deploy/hf-space`](deploy/hf-space) remain if a free Docker Space becomes available later:
+To refresh the GitHub Pages dashboard after a relayer URL change:
 
 ```bash
-HF_TOKEN=… HF_SPACE=redingmoonq/warrant-relayer ./scripts/deploy-hf-space.sh
+RELAYER_URL=https://warrant-relayer.vercel.app FACTORY_ADDRESS=0x66687369d9C683aaaaDAe98b747b63eE7e0662E3 REGISTRY_ADDRESS=0xD0442513fd53FA91c411939648F9edbBF2ed747d node scripts/write-web-config.mjs
+STATIC_EXPORT=1 NEXT_PUBLIC_BASE_PATH=/warrant pnpm --filter @warrant/web exec next build
+# then publish web/out to the gh-pages branch
 ```
 
 ## Docker and hosting
@@ -265,7 +251,7 @@ docker compose up --build               # dashboard :8080, relayer + x402 facili
 
 `Dockerfile` has three targets (`web`: static dashboard behind nginx, whose entrypoint writes `/config.js` from the
 environment; `demo`: the merchant and notes site; default: the relayer). SQLite files live on volumes.
-[`api/`](api/) and [`vercel.json`](vercel.json) are the Vercel Hobby function entry (see [Live demo](#live-demo)).
+[`server.ts`](server.ts) and [`vercel.json`](vercel.json) are the Vercel Hobby Express entry (see [Live demo](#live-demo)). [`api/`](api/) is a leftover one-segment handler and is not the production entry.
 [`deploy/hf-space`](deploy/hf-space) is the Hugging Face Space image (port 7860). [`render.yaml`](render.yaml),
 [`fly.toml`](fly.toml) and [`railway.json`](railway.json) are alternative host configs. The Render blueprint has not
 been applied (that host asked for a payment card). Fly.io's trial requires a card to continue. Railway has a card-free

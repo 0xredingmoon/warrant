@@ -43,35 +43,53 @@ CHAIN_ID="${CHAIN_ID:-44005}"
 EXPLORER_URL="${EXPLORER_URL:-https://explorer-test.qday.info}"
 PROJECT_NAME="${VERCEL_PROJECT_NAME:-warrant-relayer}"
 
-VC=(npx --yes vercel@latest)
-TOKEN_ARGS=(--token "$VERCEL_TOKEN" --yes)
-
-echo "Linking Vercel project $PROJECT_NAME (Hobby / free)..."
-LINK_ARGS=("${TOKEN_ARGS[@]}" --project "$PROJECT_NAME")
+# CLI 66 reads VERCEL_TOKEN from the environment; do not put the token on argv.
+# --cwd $ROOT so a folder named deploy/ is not treated as the project root.
+# Do not put --yes before the subcommand: `vercel --yes teams ls` is parsed as a
+# deploy of two paths and errors with "Can't deploy more than one path."
+VC=(npx --yes vercel@latest --cwd "$ROOT")
 if [[ -n "${VERCEL_SCOPE:-}" ]]; then
-  LINK_ARGS+=(--scope "$VERCEL_SCOPE")
+  VC+=(--scope "$VERCEL_SCOPE")
 fi
-# Non-interactive link: create the project on the personal Hobby team if needed.
-if ! "${VC[@]}" link "${LINK_ARGS[@]}" >/dev/null; then
-  "${VC[@]}" project add "$PROJECT_NAME" "${TOKEN_ARGS[@]}" || true
-  if ! "${VC[@]}" link "${LINK_ARGS[@]}"; then
-    echo "Could not link the Vercel project. Check that the token has Full Account scope." >&2
-    exit 1
-  fi
+
+echo "Checking the Vercel team is on the Hobby plan…"
+# `teams ls` writes the table to stderr. A failed lookup must not abort the script
+# before we have printed anything; we still refuse a non-Hobby plan when we see one.
+plan="$("${VC[@]}" teams ls 2>&1 | awk 'tolower($0) ~ /hobby|pro|enterprise/ { for (i=1;i<=NF;i++) { l=tolower($i); if (l=="hobby"||l=="pro"||l=="enterprise") print l } }' | tail -n 1 || true)"
+if [[ -n "$plan" && "$plan" != "hobby" ]]; then
+  echo "Refusing to deploy: the Vercel team plan is '$plan', not Hobby." >&2
+  exit 1
+fi
+echo "Vercel plan is ${plan:-hobby (assumed)}. Creating or reusing project $PROJECT_NAME…"
+
+if ! "${VC[@]}" project inspect "$PROJECT_NAME" >/dev/null 2>&1; then
+  "${VC[@]}" project create "$PROJECT_NAME"
+fi
+
+# Pin Node 24 (node:sqlite) and an explicit non-Next framework so web/ is not auto-detected.
+"${VC[@]}" project update "$PROJECT_NAME" --node-version 24.x --framework other --yes >/dev/null
+
+# The dashboard on GitHub Pages must be able to call /health without logging in.
+if "${VC[@]}" project protection disable "$PROJECT_NAME" --sso --yes; then
+  echo "disabled Vercel Authentication so /health is public"
+else
+  echo "warning: could not toggle deployment protection; will verify /health after deploy" >&2
 fi
 
 upsert_env() {
   local name="$1"
   local value="$2"
-  # Remove a previous production value if it exists (stdout/stderr may mention the name, never the value).
-  "${VC[@]}" env rm "$name" production "${TOKEN_ARGS[@]}" >/dev/null 2>&1 || true
-  # stdin only: the value never appears on the command line.
-  printf '%s' "$value" | "${VC[@]}" env add "$name" production "${TOKEN_ARGS[@]}" >/dev/null
+  local extra=()
+  if [[ "${3:-}" == "sensitive" ]]; then
+    extra+=(--sensitive)
+  fi
+  # stdin only: the value never appears on the command line. --force overwrites.
+  # CLI 66 wants --environment, not a positional environment argument.
+  printf '%s' "$value" | "${VC[@]}" env add "$name" --environment production --project "$PROJECT_NAME" --force --yes "${extra[@]}" >/dev/null
   echo "set production env $name"
 }
 
-# Secrets and public config. DATABASE_PATH is /tmp because the function FS is otherwise read-only.
-upsert_env RELAYER_PRIVATE_KEY "$RELAYER_PRIVATE_KEY"
+upsert_env RELAYER_PRIVATE_KEY "$RELAYER_PRIVATE_KEY" sensitive
 unset RELAYER_PRIVATE_KEY
 upsert_env FACTORY_ADDRESS "$FACTORY_ADDRESS"
 upsert_env RPC_URL "$RPC_URL"
@@ -81,8 +99,29 @@ upsert_env DATABASE_PATH "/tmp/relayer.db"
 upsert_env TRUSTED_IP_HEADER "x-forwarded-for"
 
 echo "Deploying $PROJECT_NAME to production on the Hobby plan…"
-# --prod promotes the deployment. No plan flag: stay on Hobby.
-URL="$("${VC[@]}" deploy --prod "${TOKEN_ARGS[@]}" --name "$PROJECT_NAME")"
+# --create-if-missing is required in non-interactive mode when the --project is new.
+# --json so we can print only the URL, not a log that might be noisy.
+raw="$("${VC[@]}" deploy --prod --yes --project "$PROJECT_NAME" --create-if-missing --json)"
+URL="$(python3 -c '
+import json, sys
+data = json.loads(sys.stdin.read())
+url = data.get("url") or data.get("alias") or ""
+if url and not url.startswith("http"):
+    url = "https://" + url
+aliases = data.get("aliases") or data.get("alias") or []
+if isinstance(aliases, str):
+    aliases = [aliases]
+prod = url
+for a in aliases:
+    s = a if str(a).startswith("http") else "https://" + str(a)
+    if s.endswith(".vercel.app"):
+        prod = s
+        if "warrant-relayer" in s:
+            break
+if not prod:
+    raise SystemExit("deploy JSON did not include a url")
+print(prod)
+' <<<"$raw")"
 echo "deployed: $URL"
 echo "health: ${URL%/}/health"
 echo "Set the GitHub Pages config RELAYER_URL to that origin and republish the dashboard."

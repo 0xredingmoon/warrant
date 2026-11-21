@@ -9,7 +9,7 @@
  */
 import type { Request, Response } from "express";
 import express from "express";
-import { createRelayerApp, loadConfigFromEnv } from "@warrant/relayer";
+import { createRelayerApp, loadConfigFromEnv } from "../packages/relayer/dist/index.js";
 
 type Handler = (req: Request, res: Response) => void;
 
