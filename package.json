@@ -6,7 +6,7 @@
   "description": "Spending mandates for AI agents on stablecoins (Aevum Builder Challenge #1)",
   "packageManager": "pnpm@10.34.6",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13 <25"
   },
   "scripts": {
     "abis": "node scripts/gen-abis.mjs",

@@ -15,15 +15,23 @@ services:
       - { key: RPC_URL, value: https://rpc-test.qday.info }
       - { key: CHAIN_ID, value: "44005" }
       - { key: TRUSTED_IP_HEADER, value: x-forwarded-for }
-      - { key: PORT, value: "8787" }
+      # The image defaults to /data/relayer.db (writable, ephemeral on the free plan).
+      - { key: DATABASE_PATH, value: /data/relayer.db }
+      # Bind all interfaces. Leave PORT unset to use Render's assigned port (default 10000);
+      # the process already reads process.env.PORT. HOST is also honoured (default 0.0.0.0).
+      - { key: HOST, value: "0.0.0.0" }
+      # CORS is Access-Control-Allow-Origin: * (signature-based auth), so the dashboard origin is accepted.
 
   # the dashboard is a static export: no server needed
   - type: web
     name: warrant-dashboard
     runtime: static
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build && node scripts/write-web-config.mjs && node scripts/sync-web-config.mjs && pnpm --filter @warrant/web exec next build
+    # STATIC_EXPORT must be set for `output: "export"`. RELAYER_URL is written to /config.js and also baked in as
+    # NEXT_PUBLIC_RELAYER_URL so the pre-rendered HTML matches the client (no hydration mismatch).
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build && node scripts/write-web-config.mjs && node scripts/sync-web-config.mjs && NEXT_PUBLIC_RELAYER_URL="$RELAYER_URL" NEXT_PUBLIC_FACTORY="$FACTORY_ADDRESS" NEXT_PUBLIC_REGISTRY="$REGISTRY_ADDRESS" pnpm --filter @warrant/web exec next build
     staticPublishPath: web/out
     envVars:
+      - { key: NODE_VERSION, value: "24.22.1" }
       - { key: STATIC_EXPORT, value: "1" }
       - { key: RELAYER_URL, sync: false }   # public URL of warrant-relayer, e.g. https://warrant-relayer.onrender.com
       - { key: FACTORY_ADDRESS, value: 0x66687369d9C683aaaaDAe98b747b63eE7e0662E3 }

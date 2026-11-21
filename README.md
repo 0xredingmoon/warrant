@@ -227,8 +227,12 @@ docker compose up --build               # dashboard :8080, relayer + x402 facili
 `Dockerfile` has three targets (`web`: static dashboard behind nginx, whose entrypoint writes `/config.js` from the
 environment; `demo`: the merchant and notes site; default: the relayer). SQLite files live on volumes.
 [`render.yaml`](render.yaml), [`fly.toml`](fly.toml) and [`railway.json`](railway.json) deploy the relayer and the static
-dashboard. These configs and the compose file have not been run on a hosting provider; I could only build and run the
-pieces locally with Node.
+dashboard. Apply the Render blueprint after connecting this repo: paste a throwaway testnet `RELAYER_PRIVATE_KEY` (the
+relayer pays gas) and set `RELAYER_URL` on the dashboard service to the relayer's public URL, e.g.
+`https://warrant-relayer.onrender.com`. The relayer binds `0.0.0.0` and allows the dashboard origin (CORS is `*`;
+auth is the signed intent). The static dashboard is built with Node 24 and `STATIC_EXPORT=1`. These configs and the
+compose file have not been applied on a hosting provider; the Render static build command and a production-mode
+relayer start have been run locally with Node (Docker is not required for that check).
 
 ## Demo video
 

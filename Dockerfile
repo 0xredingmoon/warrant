@@ -47,7 +47,7 @@ CMD ["./node_modules/.bin/tsx", "src/serve.ts"]
 
 # ---------------------------------------------------------------- relayer
 FROM build AS relayer
-ENV NODE_ENV=production PORT=8787 DATABASE_PATH=/data/relayer.db
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=8787 DATABASE_PATH=/data/relayer.db
 RUN mkdir -p /data && chown node:node /data
 VOLUME /data
 EXPOSE 8787
