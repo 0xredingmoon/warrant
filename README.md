@@ -220,17 +220,20 @@ the first result, which is how a payment that waited for the owner is collected 
 ## Live demo
 
 - Dashboard (GitHub Pages): [https://srmohtasham123.github.io/warrant/](https://srmohtasham123.github.io/warrant/)
-- Relayer (Hugging Face Space, free CPU): [https://redingmoonq-warrant-relayer.hf.space](https://redingmoonq-warrant-relayer.hf.space) · [Space page](https://huggingface.co/spaces/redingmoonq/warrant-relayer)
 
-The dashboard reads the Aevum testnet directly (factory, vaults, balances). Gasless deposits go through the relayer.
-The Hugging Face free CPU Space sleeps when idle; the first request after that can take about a minute to wake it.
-If the relayer is still asleep, the page shows "Relayer offline" and deposits or approvals still work from your own wallet.
+The dashboard reads the Aevum testnet directly (factory, vaults, balances). The gasless relayer is not public yet:
+Hugging Face now requires a paid PRO subscription to host Docker Spaces, even on the otherwise-free `cpu-basic`
+hardware, and no paid plan was started. Until a card-free host is available, the page shows "Relayer offline" and
+deposits or approvals still work from your own wallet.
 
-To redeploy the relayer (throwaway testnet key only):
+The image and script in [`deploy/hf-space`](deploy/hf-space) and [`scripts/deploy-hf-space.sh`](scripts/deploy-hf-space.sh)
+are ready if a Docker Space can be created later:
 
 ```bash
 HF_TOKEN=… HF_SPACE=redingmoonq/warrant-relayer ./scripts/deploy-hf-space.sh
 ```
+
+Then set the GitHub Pages build's `RELAYER_URL` to `https://redingmoonq-warrant-relayer.hf.space` and republish the dashboard.
 
 ## Docker and hosting
 

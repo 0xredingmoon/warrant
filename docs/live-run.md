@@ -1,8 +1,8 @@
 # Demo run on Aevum testnet
 
 The public dashboard is [https://srmohtasham123.github.io/warrant/](https://srmohtasham123.github.io/warrant/). The
-gasless relayer is [https://redingmoonq-warrant-relayer.hf.space](https://redingmoonq-warrant-relayer.hf.space) (free
-CPU; may take about a minute to wake when idle). The transactions below were recorded against the same factory and token.
+gasless relayer is not public yet (Hugging Face Docker Spaces now require a paid PRO plan). The transactions below were
+recorded against the same factory and token.
 
 
 Recorded 2026-11-20T12:32:58.272Z. 17 transactions, 3 of them refusals the vault recorded on-chain (PaymentRefused events): no money moved in those.
