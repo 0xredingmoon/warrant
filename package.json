@@ -23,7 +23,8 @@
     "web:dev": "pnpm --filter @warrant/web dev",
     "web:build": "pnpm --filter @warrant/web build",
     "web:static": "STATIC_EXPORT=1 pnpm --filter @warrant/web exec next build",
-    "web:serve": "node scripts/serve-web.mjs"
+    "web:serve": "node scripts/serve-web.mjs",
+    "e2e:attack": "node web/e2e/verify-attack-demo.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
