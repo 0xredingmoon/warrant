@@ -1,5 +1,6 @@
 "use client";
 import { useWallet } from "@/lib/wallet";
+import { AttackPanel } from "./AttackPanel";
 import { ChainStatus } from "./ChainStatus";
 import { ConnectButton } from "./Header";
 
@@ -67,6 +68,10 @@ export function Landing() {
           <p>A merchant serves a request after reading the payment event from the vault. Paid invoices build a receipt-bound reputation for the agent.</p>
         </div>
       </section>
+
+      <div style={{ marginTop: 34 }}>
+        <AttackPanel />
+      </div>
     </div>
   );
 }

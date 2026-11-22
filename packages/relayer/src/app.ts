@@ -19,6 +19,10 @@ import { z } from "zod";
 import { isLocalRpc, PUBLIC_DEV_KEYS, type RelayerConfig } from "./config";
 import { SettlementStore } from "./settlements";
 import { mountFacilitator } from "./x402";
+import { HttpError } from "./http-error";
+import { ATTACK_KINDS, createAttackDemo, type AttackKind } from "./attack-demo";
+
+export { HttpError } from "./http-error";
 
 const addr = z.string().refine(isAddress, "invalid address").transform((a) => getAddress(a));
 const hex = z.string().refine((s) => isHex(s), "invalid hex").transform((s) => s as Hex);
@@ -62,17 +66,9 @@ export interface RelayerApp {
   close: () => void;
 }
 
-export interface SubmitResult {
-  /** executed: money moved. queued: waiting for the owner. refused: recorded on-chain, nothing moved. rejected: not submitted. */
-  status: "executed" | "queued" | "refused" | "rejected";
-  check: CheckResult;
-  txHash?: Hex;
-  explorerUrl?: string;
-  pendingId?: string;
-  blockNumber?: bigint;
-  /** why a refusal was not recorded on-chain (rate limit) */
-  note?: string;
-}
+import type { SubmitResult } from "./attack-demo";
+
+export type { SubmitResult };
 
 /**
  * Guard rails (the relayer pays gas for anyone who can sign an intent, so it is deliberately boring):
@@ -333,6 +329,36 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
 
   mountFacilitator(app, { cfg, publicClient, relayerAddress: account.address, assertWarrantVault, submitIntent, settlements, wrap });
 
+  /**
+   * "Try the attack": a judge-facing demo that needs no wallet. When DEMO_VAULT and DEMO_AGENT_KEY are set, the
+   * relayer holds the demo agent key and signs two fixed attacks against that vault: an overspend above the
+   * per-payment cap, and a payment to an address that is not on the allowlist. Both go through `submitIntent`, so
+   * they take the same dry run and on-chain refusal path an agent would. Nothing else is ever signed with the key.
+   */
+  const demo = cfg.attackDemo ? createAttackDemo(cfg.attackDemo, publicClient, cfg.explorerUrl) : undefined;
+  if (demo) {
+    app.get("/v1/demo/attack", wrap(async (_req, res) => {
+      res.json(await demo.view());
+    }));
+
+    app.post("/v1/demo/attack", wrap(async (req, res) => {
+      const kind = String(req.body?.kind ?? "") as AttackKind;
+      if (!ATTACK_KINDS.includes(kind)) {
+        return void res.status(400).json({ error: `kind must be one of: ${ATTACK_KINDS.join(", ")}` });
+      }
+      // a demonstration can be slow, and visitors are anonymous: bound the cost per IP (the global guard) and per vault
+      if (!rates.take("vault", cfg.attackDemo!.vault, cfg.ratePerMinuteVault, 60_000)) {
+        throw new HttpError(429, "Too many attacks on this vault. Slow down.");
+      }
+      const r = await demo.run(kind, submitIntent);
+      res.json(r);
+    }));
+  } else {
+    app.get("/v1/demo/attack", wrap(async (_req, res) => {
+      res.status(404).json({ error: "The attack demo is not configured on this relayer." });
+    }));
+  }
+
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof HttpError) return void res.status(err.status).json({ error: err.message });
     if (err instanceof z.ZodError) {
@@ -351,10 +377,4 @@ export function createRelayerApp(cfg: RelayerConfig): RelayerApp {
       }
     },
   };
-}
-
-export class HttpError extends Error {
-  constructor(public readonly status: number, message: string) {
-    super(message);
-  }
 }

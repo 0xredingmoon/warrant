@@ -246,3 +246,23 @@ body:has(.sheet) .toasts { right: auto; left: 18px; }
 .flow-steps li.done { color: var(--ink-2); }
 .flow-steps .tick { color: var(--ok); width: 14px; text-align: center; font-weight: 600; }
 .flow-steps .dot-s { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); margin: 0 4px; }
+
+/* ---------- try the attack ---------- */
+.attack { border-color: var(--line-strong); }
+.attack .panel-h { background: var(--sunk); border-radius: var(--radius) var(--radius) 0 0; }
+.stack-sm { display: grid; gap: 14px; }
+.attack-lead { font-size: 14.5px; color: var(--ink-2); max-width: 74ch; }
+.attack-rows { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.attack-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 18px; padding: 14px 16px; background: var(--card); border-top: 1px solid var(--line); align-items: center; }
+.attack-row:first-child { border-top: 0; }
+.attack-title { font-weight: 600; font-size: 14.5px; }
+.attack-main .hint { margin-top: 3px; }
+.attack-state { justify-self: end; }
+.attack-result { grid-column: 1 / -1; display: grid; gap: 8px; padding: 11px 13px; background: var(--stop-bg); border-radius: var(--radius); font-size: 14px; }
+.attack-result strong { font-weight: 600; }
+.attack-result .row { gap: 12px; }
+.attack-result a { font-size: 13px; }
+@media (max-width: 640px) {
+  .attack-row { grid-template-columns: minmax(0, 1fr); }
+  .attack-state { justify-self: start; }
+}

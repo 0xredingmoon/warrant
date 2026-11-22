@@ -1,4 +1,5 @@
 import type { Address, Hex } from "viem";
+import { loadAttackDemoFromEnv, type AttackDemoConfig } from "./attack-demo";
 
 export interface RelayerConfig {
   rpcUrl: string;
@@ -26,6 +27,8 @@ export interface RelayerConfig {
   indexerUrl?: string;
   /** header carrying the real client IP when behind a proxy (e.g. x-forwarded-for). Default: socket address. */
   trustedIpHeader?: string;
+  /** "Try the attack" demo. Present only when DEMO_VAULT and DEMO_AGENT_KEY are set. */
+  attackDemo?: AttackDemoConfig;
 }
 
 export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): RelayerConfig {
@@ -49,6 +52,7 @@ export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Relayer
     dailyRefusalCap: Number(env.DAILY_REFUSAL_CAP ?? 200),
     indexerUrl: env.INDEXER_URL || env.EXPLORER_URL || "https://explorer-test.qday.info",
     trustedIpHeader: defaultTrustedIpHeader(env),
+    attackDemo: loadAttackDemoFromEnv(env),
   };
 }
 
