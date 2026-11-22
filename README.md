@@ -45,6 +45,49 @@ the factory passed. The script reads those from the chain (`owner()`, `guardian(
 "constructor(address,address,address,address)" <tUSD8> <owner> <guardian> <registry>)`. The current output is listed
 above.
 
+## Try the attack
+
+The dashboard's landing page carries a "Try the attack" panel. A judge can use it with no wallet, no install and no
+gas: two buttons ask the demonstration agent to break its own mandate, and the vault refuses both.
+
+| Button | The agent signs | The contract answers |
+| --- | --- | --- |
+| Overspend | 250.00 tUSD8 to the allowed merchant | `ExceedsPerTxCap`: above the mandate's 2.00 per-payment limit |
+| Off-list | 0.01 tUSD8 to an address the owner never allowed | `MerchantNotAllowed`: not on the merchant allowlist |
+
+Each attempt is a real EIP-712 `PaymentIntent` signed by the demonstration's agent key, submitted through the relayer
+and its normal `payOrRefuse` path. The vault checks the signature (it passes: the agent really did sign), then checks
+the mandate (it fails), and books a `PaymentRefused` event on-chain. The panel shows the contract's reason in plain
+words and a link to the transaction, so the claim can be checked on the explorer rather than taken on trust.
+
+Why the demonstration cannot be abused. The relayer loads the demonstration key only when `DEMO_VAULT` and
+`DEMO_AGENT_KEY` are both set, and refuses to start with just one. That key signs only the two fixed payments above:
+there is no code path that signs anything else with it, so the page cannot ask for a different payment. The key holds
+no tQDAY, the vault holds a small fixed balance, and neither intended attack can ever succeed, so even a broken panel
+cannot move funds. Attacks are rate limited per IP and per vault and carry a per-kind cooldown, so one visitor cannot
+use up the relayer's refusal budget.
+
+Setup, once per relayer (the vault and the manifest are public; the key is not):
+
+```bash
+# 1. deploy and fund the demonstration vault, and issue its narrow mandate
+set -a; . ./.env; set +a                                  # DEMO_PRIVATE_KEY, DEMO_AGENT_ADDRESS, DEMO_MERCHANT_ADDRESS
+forge script script/DemoAttackVault.s.sol --rpc-url aevum --legacy --broadcast
+node scripts/record-demo-attack.mjs <owner> <agent> <merchant>   # writes deployments/demo-attack.json
+
+# 2. start the relayer with the demonstration enabled
+RELAYER_PRIVATE_KEY=0x… FACTORY_ADDRESS=0x66687369d9C683aaaaDAe98b747b63eE7e0662E3 \
+DEMO_VAULT=0x… DEMO_AGENT_KEY=0x… DEMO_ALLOWED_MERCHANT=0xf2b01C5b12DaAe6adAa0a876065D303302F4b4Ae \
+  pnpm relayer
+```
+
+Endpoints: `GET /v1/demo/attack` describes the vault, its mandate as read from the chain, and the two attacks;
+`POST /v1/demo/attack {"kind": "overspend" | "offlist"}` signs and submits one and returns the same shape as
+`/v1/pay`. `deployments/demo-attack.json` records the public details, never the key.
+
+`web/e2e/verify-attack-demo.mjs` (or `pnpm e2e:attack`) drives the panel in headless Chrome with no wallet: it clicks
+both buttons and asserts each row comes back "Refused on-chain" with its reason and a transaction link.
+
 ## What the demo shows
 
 An analyst's research agent buys filings data from a merchant, Ledgerline Data, over HTTP 402. Each paid
