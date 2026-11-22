@@ -10,22 +10,40 @@ Built for the [Aevum Builder Challenge #1](https://dorahacks.io/hackathon/qday/d
 
 ## Deployed on Aevum testnet
 
-| Contract | Address | Source |
+The factory, the registry and both demo vaults are source-verified on the Blockscout explorer, so the exact
+contract that holds the funds is readable there. Each link opens the verified source, not just the address.
+
+| Contract | Address | Source on the explorer |
 | --- | --- | --- |
-| WarrantFactory | [`0x66687369d9C683aaaaDAe98b747b63eE7e0662E3`](https://explorer-test.qday.info/address/0x66687369d9C683aaaaDAe98b747b63eE7e0662E3) | [verified](https://explorer-test.qday.info/address/0x66687369d9C683aaaaDAe98b747b63eE7e0662E3?tab=contract) |
-| AgentRegistry | [`0xD0442513fd53FA91c411939648F9edbBF2ed747d`](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d) | [verified](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d?tab=contract) |
-| tUSD8 (existing token) | [`0x456569838f1d43009A91ebA4263147Afd7233483`](https://explorer-test.qday.info/address/0x456569838f1d43009A91ebA4263147Afd7233483) | |
+| WarrantFactory | [`0x66687369d9C683aaaaDAe98b747b63eE7e0662E3`](https://explorer-test.qday.info/address/0x66687369d9C683aaaaDAe98b747b63eE7e0662E3) | [verified, WarrantFactory.sol](https://explorer-test.qday.info/address/0x66687369d9C683aaaaDAe98b747b63eE7e0662E3?tab=contract) |
+| AgentRegistry | [`0xD0442513fd53FA91c411939648F9edbBF2ed747d`](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d) | [verified, AgentRegistry.sol](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d?tab=contract) |
+| Demo vault (scripted run) | [`0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16`](https://explorer-test.qday.info/address/0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16) | [verified, WarrantVault.sol](https://explorer-test.qday.info/address/0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16?tab=contract) |
+| Demo vault (recorded video) | [`0xf864d54a695D48b3b222bff935018f2a779acd7c`](https://explorer-test.qday.info/address/0xf864d54a695D48b3b222bff935018f2a779acd7c) | [verified, WarrantVault.sol](https://explorer-test.qday.info/address/0xf864d54a695D48b3b222bff935018f2a779acd7c?tab=contract) |
+| tUSD8 (existing token) | [`0x456569838f1d43009A91ebA4263147Afd7233483`](https://explorer-test.qday.info/address/0x456569838f1d43009A91ebA4263147Afd7233483) | not ours |
 
 Deployment transactions (block 3661989): [AgentRegistry](https://explorer-test.qday.info/tx/0x90d2909f9233ad7488a986c86534b61979ea9c9c41b1dc47ee7f9e2dbc442c06),
 [WarrantFactory](https://explorer-test.qday.info/tx/0x5675d377f3236b491a90eaafaf0ca2d76f5519265fc418b8a6cc498feaf12b4b), [`registry.setFactory`](https://explorer-test.qday.info/tx/0xb84581507c2cc4fdb937d43fd54448581ecad7ddb970910aeeb644a212d30ff1). Protocol fee 10 bps
 (0.10%), treasury is the deployer address `0x462E1FcE506B5067cb46531659195C0417f9e86f`. Machine-readable copy: [`deployments/aevum.json`](deployments/aevum.json).
 
-A complete scenario was run against these contracts on 2026-11-20: [`docs/live-run.md`](docs/live-run.md)
-lists all 17 transactions with explorer links, three of them refusals that the vault recorded on-chain. The vault
-from that run, [`0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16`](https://explorer-test.qday.info/address/0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16),
-is also source-verified, as is [the vault from the recorded demo video](https://explorer-test.qday.info/address/0xf864d54a695D48b3b222bff935018f2a779acd7c).
-The explorer does not verify vaults the factory creates on its own: each one needs `forge verify-contract <vault> src/WarrantVault.sol:WarrantVault
---verifier blockscout --verifier-url https://explorer-test.qday.info/api/ --chain 44005 --constructor-args $(cast abi-encode "constructor(address,address,address,address)" <tUSD8> <owner> <guardian> <registry>)`.
+All four were compiled with solc 0.8.24, EVM target `shanghai`, optimizer on with 200 runs, which is exactly what
+[`foundry.toml`](foundry.toml) sets, so the explorer's match is the same bytecode these tests run against.
+
+### Checking the verification
+
+Verification is not taken on trust. `scripts/verify-contracts.sh` asks the explorer whether each address is verified,
+and for any that is not, sends the exact `forge verify-contract` call the factory's own deployments need:
+
+```bash
+bash scripts/verify-contracts.sh                       # factory, registry, first demo vault
+bash scripts/verify-contracts.sh 0xYourVaultAddress    # any other vault
+```
+
+The explorer never verifies a vault the factory created by itself, because it cannot know the constructor arguments
+the factory passed. The script reads those from the chain (`owner()`, `guardian()`) instead of asking you to type them:
+`forge verify-contract <vault> src/WarrantVault.sol:WarrantVault --chain 44005 --verifier blockscout
+--verifier-url https://explorer-test.qday.info/api/ --compiler-version 0.8.24 --constructor-args $(cast abi-encode
+"constructor(address,address,address,address)" <tUSD8> <owner> <guardian> <registry>)`. The current output is listed
+above.
 
 ## What the demo shows
 

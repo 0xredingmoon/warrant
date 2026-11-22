@@ -76,12 +76,16 @@ describe("invoice store", () => {
       expect(m1.store.consume(inv.ref)).toBe(true);
       db1.close();
 
-      const m2 = createMerchant({ publicClient: {} as unknown as PublicClient, chainId: 44005, factory: FACTORY, token: TOKEN, payTo: PAYEE, dbPath: file });
+      // open the second connection explicitly so it can be closed: Windows keeps an open SQLite file locked and the
+      // temp dir cannot be removed until every handle is closed
+      const db2 = openDb(file);
+      const m2 = createMerchant({ publicClient: {} as unknown as PublicClient, chainId: 44005, factory: FACTORY, token: TOKEN, payTo: PAYEE, store: new SqliteInvoiceStore(db2) });
       const back = m2.store.get(inv.ref)!;
       expect(back.invoice).toEqual(inv);
       expect(back.amount).toBe(150_000n);
       expect(back.paidTx).toBe("0x" + "ab".repeat(32));
       expect(m2.store.consume(inv.ref)).toBe(false); // an invoice buys one response, even after a restart
+      db2.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

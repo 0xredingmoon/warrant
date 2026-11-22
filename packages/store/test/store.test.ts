@@ -33,9 +33,11 @@ describe("RateStore", () => {
       r1.take("ip", "x", 1, 60_000, t);
       r1.takeDaily("tx", 1, t);
       a.close();
-      const r2 = new RateStore(openDb(file));
+      const b = openDb(file);
+      const r2 = new RateStore(b);
       expect(r2.take("ip", "x", 1, 60_000, t + 10)).toBe(false);
       expect(r2.takeDaily("tx", 1, t)).toBe(false);
+      b.close(); // Windows keeps an open SQLite file locked, so the temp dir cannot be removed until every handle is closed
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -46,7 +48,11 @@ describe("RateStore", () => {
     try {
       const blocked = join(dir, "blocked");
       mkdirSync(blocked, { mode: 0o500 });
-      const { db, path } = openDbWithFallback(join(blocked, "r.db"));
+      // Windows ignores POSIX mode bits, so a 0500 directory stays writable and the fallback would never be reached.
+      // Handing in a directory path instead makes the first candidate fail on every platform: openDb cannot create
+      // the database on top of an existing directory.
+      const unwritable = process.platform === "win32" ? blocked : join(blocked, "r.db");
+      const { db, path } = openDbWithFallback(unwritable);
       expect(path === "/tmp/relayer.db" || path === ":memory:").toBe(true);
       const rates = new RateStore(db);
       expect(rates.take("ip", `fallback-${Date.now()}-${Math.random()}`, 1, 60_000)).toBe(true);
