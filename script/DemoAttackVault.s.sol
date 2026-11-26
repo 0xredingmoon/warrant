@@ -47,13 +47,21 @@ contract DemoAttackVault is Script {
         require(owner == signer, "DEMO_OWNER must be the signing key: createVault sets msg.sender as owner");
         require(agent != address(0) && merchant != address(0), "agent and merchant are required");
 
+        // a faucet hands out a fixed amount, and it may be less than DEMO_DEPOSIT: fund with what is actually there
+        // rather than refusing. The vault only has to hold more than the off-list attack's amount, which is tiny.
+        uint256 available = IERC20(token).balanceOf(signer);
+        if (available == 0) {
+            revert("the signer holds no tUSD8: claim it from faucet.qday.info first");
+        }
+        if (available < deposit) {
+            console.log("held less than DEMO_DEPOSIT; using the whole balance instead", available);
+            deposit = available;
+        }
+
         vm.startBroadcast(pk);
 
         address vault = WarrantFactory(factory).createVault(address(0), keccak256("warrant-demo-attack"));
 
-        if (IERC20(token).balanceOf(signer) < deposit) {
-            revert("the signer does not hold DEMO_DEPOSIT tUSD8: claim it from faucet.qday.info first");
-        }
         IERC20(token).approve(vault, deposit);
         WarrantVault(vault).deposit(deposit);
 
