@@ -60,6 +60,23 @@ and its normal `payOrRefuse` path. The vault checks the signature (it passes: th
 the mandate (it fails), and books a `PaymentRefused` event on-chain. The panel shows the contract's reason in plain
 words and a link to the transaction, so the claim can be checked on the explorer rather than taken on trust.
 
+Live on Aevum testnet: [the panel on GitHub Pages](https://srmohtasham123.github.io/warrant/) against vault
+[`0xC3Cd5BEF962C78e5f673386f808046E9812e905e`](https://explorer-test.qday.info/address/0xC3Cd5BEF962C78e5f673386f808046E9812e905e?tab=contract)
+(source-verified), mandate #1. The first two clicks were:
+
+| Attack | Result | Transaction |
+| --- | --- | --- |
+| Overspend 250.00 tUSD8 | `PaymentRefused`, reason `9` (`ExceedsPerTxCap`) | [0xbf60d176…](https://explorer-test.qday.info/tx/0xbf60d1765e24e25807f75175974fe3785c87dac92b5b0520a297e2373dea90c6) |
+| 0.01 tUSD8 to 0x000…dEaD | `PaymentRefused`, reason `7` (`MerchantNotAllowed`) | [0xd44e9125…](https://explorer-test.qday.info/tx/0xd44e9125d74d4e1dc74e702a0c25e96eb5ec35d1c46fce7a095e4ba09d99498e) |
+
+Both events carry the amount in the first data word and the reason in the second, so the explorer's logs tab decodes
+them without any extra tooling. The vault still holds exactly `1.00` tUSD8, and `refusalCount(1)` is `2`.
+
+Opening the demonstration took four transactions: [createVault](https://explorer-test.qday.info/tx/0x657e6b49730bc0684e93f26f619f25c91792787a76aafe17d8a0543219d51774),
+[approve](https://explorer-test.qday.info/tx/0x718f4a99dcb92bc4bd891b0339cf69bf4445b5cd283e0690ecc68e935f1275a1),
+[deposit](https://explorer-test.qday.info/tx/0x5ba92802035576e9b229a18572218d2180f414b342d9cde77ff5a2933a9f6da0),
+[createMandate](https://explorer-test.qday.info/tx/0x4659dc6b3698840f957397a85d4686e1a9bbab2ade249e67b36f5b63231cc61e).
+
 Why the demonstration cannot be abused. The relayer loads the demonstration key only when `DEMO_VAULT` and
 `DEMO_AGENT_KEY` are both set, and refuses to start with just one. That key signs only the two fixed payments above:
 there is no code path that signs anything else with it, so the page cannot ask for a different payment. The key holds
