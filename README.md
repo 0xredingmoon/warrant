@@ -51,10 +51,10 @@ The dashboard's landing page carries a "Try the attack" panel, directly under th
 wallet, no install and no gas: two buttons ask the demonstration agent to break its own mandate, and the vault refuses
 both. Link straight to it with [`#try-the-attack`](https://srmohtasham123.github.io/warrant/#try-the-attack).
 
-A "Take the tour" button in the hero walks the page in five short beats: the shape of a mandate, the two attacks, why
-the on-chain refusal is the point, what a normal day looks like, and where to connect a wallet to create your own. It
-never advances on a timer, arrow keys and Escape work, and it sits clear of the buttons so a visitor can run an attack
-with the tour still open.
+A "Take the tour" button in the hero walks the page in six short beats: the shape of a mandate, the two attacks, why
+the on-chain refusal is the point, the two kinds of agent that were refused, what a normal day looks like, and where to
+connect a wallet to create your own. It never advances on a timer, arrow keys and Escape work, and it sits clear of the
+buttons so a visitor can run an attack with the tour still open.
 
 | Button | The agent signs | The contract answers |
 | --- | --- | --- |
@@ -76,7 +76,12 @@ Live on Aevum testnet: [the panel on GitHub Pages](https://srmohtasham123.github
 | 0.01 tUSD8 to 0x000…dEaD | `PaymentRefused`, reason `7` (`MerchantNotAllowed`) | [0xd44e9125…](https://explorer-test.qday.info/tx/0xd44e9125d74d4e1dc74e702a0c25e96eb5ec35d1c46fce7a095e4ba09d99498e) |
 
 Both events carry the amount in the first data word and the reason in the second, so the explorer's logs tab decodes
-them without any extra tooling. The vault still holds exactly `1.00` tUSD8, and `refusalCount(1)` is `2`.
+them without any extra tooling. Those two clicks left the vault at `1.00` tUSD8 and `refusalCount(1)` at `2`.
+
+The panel is live, so anyone who visits can add to those numbers. Rather than quote a figure that moves, the
+dashboard's "Proof you can check" section reads the vault's balance, each mandate's `spentTotal` and each
+`refusalCount` from the contract every fifteen seconds. The two hashes above are fixed history; the counts beside them
+are whatever the chain says when you look.
 
 Opening the demonstration took four transactions: [createVault](https://explorer-test.qday.info/tx/0x657e6b49730bc0684e93f26f619f25c91792787a76aafe17d8a0543219d51774),
 [approve](https://explorer-test.qday.info/tx/0x718f4a99dcb92bc4bd891b0339cf69bf4445b5cd283e0690ecc68e935f1275a1),
@@ -393,6 +398,15 @@ changes: `MandateParams.agent` was already documented as "EOA or ERC-1271 contra
 
 Both payments are on the demo vault `0xC3Cd5BEF962C78e5f673386f808046E9812e905e`, mandate #2, whose agent is the
 account. `deployments/kernel-account-demo.json` records the same hashes.
+
+The dashboard shows this rather than only describing it. A "Proof you can check" section sits under the attack panel
+and puts the two runtimes side by side on that one vault: the plain key of mandate #1 and the smart account of mandate
+#2. Each card reads `getMandate(id).params.agent` from the vault and says whether it matches the agent the card claims,
+so the claim "the smart account is the agent" is checked against the contract rather than asserted. Above them it shows
+the vault's balance, and for each mandate its `spentTotal` and `refusalCount`, all read every fifteen seconds, so the
+figures cannot drift from the chain. Below them it reads `accountId()` (`kernel.advanced.v0.3.1`) and `rootValidator()`
+from the account itself. The transactions are linked, not embedded. `web/lib/proof.ts` holds the fixed hashes and the
+live reads; `web/components/ProofPanel.tsx` renders them.
 
 ### The signature the account gives the vault
 

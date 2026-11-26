@@ -285,8 +285,10 @@ select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
 
 /* ---------- landing ---------- */
 .hero { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 48px; align-items: center; padding: 24px 0 40px; }
-.hero h1 { font-size: clamp(36px, 5.6vw, 62px); font-weight: 800; line-height: 1.02; letter-spacing: -0.04em; }
-.hero h1 em { color: var(--accent); font-style: normal; }
+.hero h1 { font-family: var(--font-display), Georgia, serif; font-size: clamp(40px, 6.2vw, 74px); font-weight: 400; line-height: 0.98; letter-spacing: -0.02em; }
+.hero h1 em { color: var(--accent); font-style: italic; }
+/* the serif needs slightly more room between lines than the grotesque did */
+.hero p.lead { margin-top: 22px; font-size: 17.5px; line-height: 1.55; max-width: 46ch; }
 .hero p.lead { margin-top: 18px; font-size: 19px; line-height: 1.4; color: var(--ink-2); max-width: 48ch; }
 .hero .cta { margin-top: 26px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .ticket { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 14px; overflow: hidden; }
@@ -352,7 +354,7 @@ select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
   .sheet { padding: 18px 16px calc(24px + env(safe-area-inset-bottom)); border-radius: var(--radius-lg); margin-top: 36px; height: auto; max-height: calc(100% - 36px); }
   .scrim { align-items: flex-end; }
   .toasts { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); width: auto; }
-  .hero h1 { font-size: 40px; }
+  .hero h1 { font-size: 42px; }
   .hero p.lead { font-size: 17px; }
   .panel-b, .panel-h, .mandate, .pend, .rep, .log li { padding-left: 16px; padding-right: 16px; }
 }
@@ -403,6 +405,44 @@ body:has(.sheet) .toasts { right: auto; left: 16px; }
 .attack-result strong { font-weight: 700; }
 .attack-result .row { gap: 12px; }
 .attack-result a { font-size: 14px; }
+
+/* ---------- proof: the same grouped-card rhythm, two runtimes side by side ---------- */
+.proof { margin-top: 34px; }
+.proof-balance { display: grid; gap: 4px; padding: 16px 18px; background: var(--card-2); border-radius: var(--radius); }
+.proof-balance strong { font-size: clamp(26px, 4.6vw, 34px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; display: flex; align-items: center; }
+.proof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.proof-card { background: var(--card); border: var(--hair) solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; align-content: start; }
+.proof-card-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.proof-kind { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: var(--card-2); color: var(--ink-2); }
+.proof-kind.smart { background: var(--accent-weak); color: var(--accent); }
+.proof-name { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+.proof-note { font-size: 14.5px; color: var(--ink-2); line-height: 1.45; }
+.proof-facts { display: grid; gap: 10px; margin: 4px 0 2px; padding-top: 12px; border-top: var(--hair) solid var(--line); }
+.proof-facts div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.proof-facts dt { font-size: 13px; color: var(--ink-3); font-weight: 600; }
+.proof-facts dd { margin: 0; font-size: 15px; font-weight: 600; text-align: right; }
+.proof-ok { color: var(--ok); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.proof-bad { color: var(--stop); font-size: 12px; font-weight: 700; }
+.proof-links { display: grid; gap: 8px; margin-top: 6px; }
+.proof-link {
+  display: grid; gap: 2px; padding: 11px 13px; border-radius: var(--radius-sm);
+  background: var(--stop-bg); color: var(--ink); min-height: var(--hit); align-content: center;
+}
+.proof-link.ok { background: var(--ok-bg); }
+.proof-link:hover { text-decoration: none; filter: brightness(0.97); }
+.proof-link-t { font-size: 15px; font-weight: 650; }
+.proof-link.ok .proof-link-t { color: var(--ok); }
+.proof-link:not(.ok) .proof-link-t { color: var(--stop); }
+.proof-link-s { font-size: 13px; color: var(--ink-2); }
+.proof-kernel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 18px; margin: 2px 0 0; padding-top: 14px; border-top: var(--hair) solid var(--line); }
+.proof-kernel dt { font-size: 12px; color: var(--ink-3); font-weight: 600; }
+.proof-kernel dd { margin: 3px 0 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .proof-grid, .proof-kernel { grid-template-columns: 1fr; }
+  /* the agent row is the one that carries two labels: stack them on a phone instead of squeezing both right */
+  .proof-facts div:first-child { flex-direction: column; gap: 2px; }
+  .proof-facts div:first-child dd { text-align: left; }
+}
 
 /* ---------- tour: a frosted floating sheet that never covers the Try it buttons ---------- */
 .tour-open { margin-left: 4px; }

@@ -10,6 +10,7 @@ const NAMES: Record<number, string> = { 1: "Ethereum", 10: "Optimism", 56: "BNB 
 export function ConnectButton({ big = false }: { big?: boolean }) {
   const { status, connect, notice, lostAccess } = useWallet();
   if (status === "unavailable") {
+    // the one place this sentence appears; the header only carries a status chip
     return (
       <span className="hint" role="alert">
         No browser wallet found. Install MetaMask or Rabby, then reload.
@@ -61,7 +62,7 @@ export function Header() {
           </>
         ) : status === "connecting" ? (
           <span className="muted" style={{ fontSize: 13 }}>Waiting for your wallet…</span>
-        ) : status === "checking" ? null : (
+        ) : status === "checking" ? null : status === "unavailable" ? null : (
           <ConnectButton />
         )}
       </div>
