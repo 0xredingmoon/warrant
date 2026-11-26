@@ -5,6 +5,12 @@ gives an agent a mandate: which merchants it may pay, how much per payment, per 
 when, and from what amount a human has to approve. The agent signs payment requests; the vault contract
 checks every rule inside the payment transaction. The agent never holds funds or gas.
 
+The part that is ours alone: the mandate is not a check the agent phones in, it is the agent's own spending
+policy. The same mandate works whether the agent signs with a plain key or is an ERC-4337 smart account, and
+an owner watches every agent that was ever granted one from a single on-chain log. Two such agents, one with a
+key and one a Kernel account, were both refused by the same vault, and their refusals sit in the same list:
+[check it yourself](#proof-you-can-check).
+
 Built for the [Aevum Builder Challenge #1](https://dorahacks.io/hackathon/qday/detail) on QDay Aevum testnet
 (chain `44005`). MIT licensed. Testnet only; the contracts are not audited.
 
@@ -399,14 +405,16 @@ changes: `MandateParams.agent` was already documented as "EOA or ERC-1271 contra
 Both payments are on the demo vault `0xC3Cd5BEF962C78e5f673386f808046E9812e905e`, mandate #2, whose agent is the
 account. `deployments/kernel-account-demo.json` records the same hashes.
 
+### Proof you can check
+
 The dashboard shows this rather than only describing it. A "Proof you can check" section sits under the attack panel
 and puts the two runtimes side by side on that one vault: the plain key of mandate #1 and the smart account of mandate
 #2. Each card reads `getMandate(id).params.agent` from the vault and says whether it matches the agent the card claims,
-so the claim "the smart account is the agent" is checked against the contract rather than asserted. Above them it shows
-the vault's balance, and for each mandate its `spentTotal` and `refusalCount`, all read every fifteen seconds, so the
-figures cannot drift from the chain. Below them it reads `accountId()` (`kernel.advanced.v0.3.1`) and `rootValidator()`
-from the account itself. The transactions are linked, not embedded. `web/lib/proof.ts` holds the fixed hashes and the
-live reads; `web/components/ProofPanel.tsx` renders them.
+so "the smart account is the agent" is checked against the contract rather than asserted. Above them it shows the
+vault's balance, and for each mandate its `spentTotal` and `refusalCount`, all read every fifteen seconds, so the figures
+cannot drift from the chain. Below them it reads `accountId()` (`kernel.advanced.v0.3.1`) and `rootValidator()` from the
+account itself. The transactions are linked, not embedded. `web/lib/proof.ts` holds the fixed hashes and the live reads;
+`web/components/ProofPanel.tsx` renders them.
 
 ### The signature the account gives the vault
 
