@@ -74,11 +74,9 @@ export function ProofPanel() {
         <span className="chip">read live from the chain</span>
       </div>
       <div className="panel-b stack-sm">
-        <p className="attack-lead">
-          The same vault, <span className="mono" title={PROOF_VAULT}>{short(PROOF_VAULT)}</span>, has held a mandate for
-          two different kinds of agent. One signs with an ordinary key. The other is an ERC-4337 smart account, and the
-          mandate is its spending policy. Both were refused when they tried to overspend, and the refusals sit in the
-          same on-chain log, which is what lets one owner watch every agent from one place.
+        <p className="proof-lead">
+          One vault, <span className="mono" title={PROOF_VAULT}>{short(PROOF_VAULT)}</span>. Two agents of different
+          kinds, the same rules for both.
         </p>
 
         <div className="proof-balance">

@@ -51,19 +51,25 @@ export function Landing() {
             Deposit tUSD8 into a vault you own. The agent signs payment requests; the contract pays only merchants you listed, within per-payment, daily and total limits, until the mandate expires. Large payments wait for your approval. Revoking takes one transaction.
           </p>
           <div className="cta">
-            <ConnectButton big />
+            {/* With no wallet installed, asking someone to install one before they can look at anything is the wrong
+                first move. Point at the live test instead, and keep the wallet prompt for people who can act on it. */}
             {status === "unavailable" ? (
-              <span className="hint">This page needs no wallet to run the demonstration below.</span>
-            ) : status === "connecting" ? (
+              <a className="btn" href="#try-the-attack">
+                Run the test, no wallet needed
+              </a>
+            ) : (
+              <ConnectButton big />
+            )}
+            {status === "connecting" ? (
               <span className="hint waiting" role="status"><span className="spinner dark" aria-hidden /> Waiting for your wallet. Approve the connection in its window; nothing is sent.</span>
             ) : (
-              <span className="hint">Injected wallet only. Nothing is sent until you confirm.</span>
+              <Tour onOpenMine={openMine} />
             )}
             <ChainStatus />
-            <Tour onOpenMine={openMine} />
           </div>
         </div>
         <div id="decisions">
+          <p className="ticket-cap">One day under one mandate</p>
           <aside className="ticket" aria-label="Example decisions from a recorded run">
             <div className="ticket-h">
               <span>Mandate 1 · Ledgerline only</span>

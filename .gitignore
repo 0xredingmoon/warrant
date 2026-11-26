@@ -9,6 +9,9 @@ node_modules/
 *.keystore
 .DS_Store
 .demo/
+# local preview of the exported site and screenshots taken while checking it
+web/.serve/
+web/.shots/
 web/.next/
 dist/
 *.tsbuildinfo

@@ -7,55 +7,69 @@
  */
 
 :root {
-  /* iOS system greys, light */
-  --bg: #f2f2f7;             /* systemGroupedBackground */
-  --card: #ffffff;           /* secondarySystemGroupedBackground */
-  --card-2: #f2f2f7;
-  --sunk: #e5e5ea;
-  --ink: #1c1c1e;            /* label */
-  --ink-2: #3a3a3c;          /* secondaryLabel */
-  --ink-3: #8a8a8e;          /* tertiaryLabel */
-  --line: rgba(60, 60, 67, 0.16);      /* separator */
-  --line-strong: rgba(60, 60, 67, 0.28);
-  /* one accent, iOS blue; green/amber/red only for state */
-  --accent: #007aff;
-  --accent-weak: rgba(0, 122, 255, 0.12);
-  --ok: #248a3d;
-  --ok-bg: rgba(52, 199, 89, 0.14);
-  --warn: #b25000;           /* iOS orange, darkened for text */
-  --warn-bg: rgba(255, 149, 0, 0.16);
-  --stop: #d70015;           /* systemRed */
-  --stop-bg: rgba(255, 59, 48, 0.14);
-  --radius: 14px;            /* grouped card corner */
+  /* Warm paper ground, not systemGroupedBackground. A warrant is a sealed document, so the page is stock and ink
+     rather than a settings screen. Keeping the iOS *structure* (grouped cards, hairlines, 44px targets) while giving
+     Warrant its own tint is what every system app does: Notes is yellow, Photos is black, this is paper. */
+  --bg: #f4f1ea;
+  --card: #fffdf8;
+  --card-2: #efeade;
+  --sunk: #e3ddcd;
+  --ink: #17140f;
+  --ink-2: #45403a;
+  --ink-3: #7c766b;
+  --line: rgba(23, 20, 15, 0.13);
+  --line-strong: rgba(23, 20, 15, 0.26);
+  /* The accent is a deep seal indigo. Green, amber and red stay reserved for state, so nothing interactive is ever
+     mistaken for "paid", "waiting" or "refused". */
+  --accent: #2f3a73;
+  --accent-weak: rgba(47, 58, 115, 0.10);
+  --ok: #1c6b47;
+  --ok-bg: rgba(28, 107, 71, 0.11);
+  --warn: #8a4d06;
+  --warn-bg: rgba(138, 77, 6, 0.12);
+  --stop: #a32a1c;
+  --stop-bg: rgba(163, 42, 28, 0.10);
+  /* the instrument: a dark surface that makes the live demo the one dominant element on the page */
+  --ink-bg: #1b1814;
+  --ink-bg-2: #262119;
+  --ink-fg: #f4f1ea;
+  --ink-fg-2: #b8b1a3;
+  --ink-line: rgba(244, 241, 234, 0.14);
+  --radius: 14px;
   --radius-sm: 10px;
-  --radius-lg: 22px;         /* sheet corner */
-  --hair: 0.5px;
+  --radius-lg: 22px;
+  --hair: 1px;
   --sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-  --serif: var(--font-sans), -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --serif: var(--font-display), Georgia, "Times New Roman", serif;
   --mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
-  --hit: 44px;               /* minimum touch target */
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 28px rgba(0, 0, 0, 0.05);
+  --hit: 44px;
+  --shadow: 0 1px 2px rgba(23, 20, 15, 0.04), 0 10px 30px rgba(23, 20, 15, 0.05);
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --card: #1c1c1e;
-    --card-2: #2c2c2e;
-    --sunk: #2c2c2e;
-    --ink: #ffffff;
-    --ink-2: #d1d1d6;
-    --ink-3: #8e8e93;
-    --line: rgba(84, 84, 88, 0.5);
-    --line-strong: rgba(120, 120, 128, 0.6);
-    --accent: #0a84ff;
-    --accent-weak: rgba(10, 132, 255, 0.2);
-    --ok: #30d158;
-    --ok-bg: rgba(48, 209, 88, 0.18);
-    --warn: #ff9f0a;
-    --warn-bg: rgba(255, 159, 10, 0.18);
-    --stop: #ff453a;
-    --stop-bg: rgba(255, 69, 58, 0.18);
+    --bg: #14120e;
+    --card: #1e1a15;
+    --card-2: #272219;
+    --sunk: #2f2a20;
+    --ink: #f6f3ec;
+    --ink-2: #cdc6b8;
+    --ink-3: #928b7d;
+    --line: rgba(246, 243, 236, 0.12);
+    --line-strong: rgba(246, 243, 236, 0.24);
+    --accent: #a8b0e8;
+    --accent-weak: rgba(168, 176, 232, 0.14);
+    --ok: #6fcaa0;
+    --ok-bg: rgba(111, 202, 160, 0.14);
+    --warn: #e0a45c;
+    --warn-bg: rgba(224, 164, 92, 0.14);
+    --stop: #e88b7e;
+    --stop-bg: rgba(232, 139, 126, 0.14);
+    --ink-bg: #0b0a08;
+    --ink-bg-2: #171410;
+    --ink-fg: #f6f3ec;
+    --ink-fg-2: #a8a193;
+    --ink-line: rgba(246, 243, 236, 0.12);
     --shadow: none;
   }
 }
@@ -138,6 +152,10 @@ h1, h2, h3, p { margin: 0; }
 .input:focus { outline: 3px solid var(--accent); outline-offset: 0; }
 .input.bad { outline: 2px solid var(--stop); }
 .hint { font-size: 14px; color: var(--ink-3); line-height: 1.4; }
+/* A word inside a sentence still has to be touchable. This grows the hit area vertically without widening the line
+   box or shifting the text around it, which is what a 44px inline-flex would do. */
+a.tap { position: relative; display: inline-block; }
+a.tap::after { content: ""; position: absolute; inset: -13px -6px; }
 .err { font-size: 14px; color: var(--stop); font-weight: 500; }
 .affix { display: flex; align-items: center; border-radius: 12px; background: var(--card-2); }
 .affix:focus-within { outline: 3px solid var(--accent); }
@@ -152,12 +170,19 @@ h1, h2, h3, p { margin: 0; }
   box-shadow: var(--shadow);
   overflow: hidden;
 }
+/* The header is sticky at 52px of content plus its padding. Without this, every in-page link lands with the heading it
+   was pointing at tucked underneath the bar, which is exactly where "Run the test, no wallet needed" sends people. */
+:target, section[id], .panel[id] { scroll-margin-top: 78px; }
 .panel-h {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 20px 10px;
   border-bottom: var(--hair) solid var(--line);
 }
-.panel-h h2 { font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; color: var(--ink-3); margin-right: auto; }
+/* A section heading is a heading, not a list label. The uppercase micro-label treatment belongs to the chips beside
+   it; a 13px grey title left "Proof you can check" quieter than the 19px card names under it, which erased the page's
+   own structure for anyone scanning it. */
+.panel-h h2 { font-size: 20px; letter-spacing: -0.02em; font-weight: 650; color: var(--ink); margin-right: auto; }
+.attack .panel-h h2, .proof .panel-h h2 { font-size: 24px; }
 .panel-b { padding: 18px 20px; }
 .empty { padding: 32px 20px; color: var(--ink-2); display: grid; gap: 10px; justify-items: start; }
 .empty strong { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
@@ -284,14 +309,23 @@ select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
 .check input { width: 24px; height: 24px; margin-top: 0; accent-color: var(--accent); flex: none; }
 
 /* ---------- landing ---------- */
-.hero { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 48px; align-items: center; padding: 24px 0 40px; }
-.hero h1 { font-family: var(--font-display), Georgia, serif; font-size: clamp(40px, 6.2vw, 74px); font-weight: 400; line-height: 0.98; letter-spacing: -0.02em; }
+.hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 44px; align-items: start; padding: 34px 0 44px; }
+.hero h1 {
+  font-family: var(--serif);
+  font-size: clamp(42px, 5.6vw, 78px);
+  font-weight: 400;
+  line-height: 0.96;
+  letter-spacing: -0.025em;
+  max-width: 15ch;           /* a serif this size needs a short measure or it reads as a wall */
+  text-wrap: balance;
+}
 .hero h1 em { color: var(--accent); font-style: italic; }
-/* the serif needs slightly more room between lines than the grotesque did */
-.hero p.lead { margin-top: 22px; font-size: 17.5px; line-height: 1.55; max-width: 46ch; }
-.hero p.lead { margin-top: 18px; font-size: 19px; line-height: 1.4; color: var(--ink-2); max-width: 48ch; }
-.hero .cta { margin-top: 26px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.ticket { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 14px; overflow: hidden; }
+.hero p.lead { margin-top: 24px; font-size: 18px; line-height: 1.5; color: var(--ink-2); max-width: 44ch; }
+.hero .cta { margin-top: 28px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+/* align the table's first line with the headline's cap height rather than its box top */
+.hero #decisions { padding-top: 14px; }
+.ticket-cap { font-size: 12px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; }
+.ticket { background: var(--card); border: var(--hair) solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 14px; overflow: hidden; }
 .ticket-h { padding: 12px 16px; border-bottom: var(--hair) solid var(--line); display: flex; justify-content: space-between; color: var(--ink-3); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
 .ticket-r { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 11px 16px; border-top: var(--hair) solid var(--line); align-items: baseline; }
 .ticket-r:first-of-type { border-top: 0; }
@@ -387,24 +421,54 @@ body:has(.sheet) .toasts { right: auto; left: 16px; }
 .flow-steps .tick { color: var(--ok); width: 16px; text-align: center; font-weight: 700; }
 .flow-steps .dot-s { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); margin: 0 4px; }
 
-/* ---------- try the attack ---------- */
-.attack { border: 2px solid var(--accent); }
-.attack .panel-h { background: var(--accent-weak); border-bottom: 0; }
-.stack-sm { display: grid; gap: 16px; }
-.attack-lead { font-size: 15px; color: var(--ink-2); max-width: 72ch; line-height: 1.45; }
-.attack-rows { display: grid; gap: 0; border-radius: var(--radius); overflow: hidden; background: var(--card-2); }
-.attack-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 16px;
-  padding: 16px; background: var(--card); border-top: var(--hair) solid var(--line); align-items: center;
+/* ---------- try the attack: the one dark instrument on the page ---------- */
+/* This is the only inverted surface. It earns it: it is the single thing a visitor can operate without a wallet,
+   so it should read as a live console rather than another white card in a stack of white cards. */
+.attack {
+  background: var(--ink-bg); color: var(--ink-fg);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px -24px rgba(23, 20, 15, 0.45);
 }
-.attack-row:first-child { border-top: 0; }
-.attack-title { font-weight: 650; font-size: 16px; letter-spacing: -0.01em; }
-.attack-main .hint { margin-top: 4px; }
+.attack .panel-h { border-bottom: var(--hair) solid var(--ink-line); padding: 18px 24px 14px; }
+.attack .panel-h h2 { color: var(--ink-fg); }
+.attack .panel-h .chip { background: var(--ink-bg-2); color: var(--ink-fg-2); }
+.attack .panel-b { padding: 22px 24px 24px; }
+.stack-sm { display: grid; gap: 16px; }
+.attack-lead { font-size: 15.5px; color: var(--ink-fg-2); max-width: 68ch; line-height: 1.55; }
+.attack .hint { color: var(--ink-fg-2); }
+.attack .facts dt { color: var(--ink-fg-2); }
+.attack .facts dd { color: var(--ink-fg); }
+.attack .facts a.mono { color: var(--ink-fg); }
+.attack .panel-b > .hint:last-child { opacity: 0.75; font-size: 13.5px; }
+
+.attack-rows { display: grid; gap: 10px; }
+.attack-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 18px;
+  padding: 18px 20px; background: var(--ink-bg-2); border-radius: var(--radius); align-items: center;
+}
+.attack-title { font-weight: 600; font-size: 16.5px; letter-spacing: -0.01em; color: var(--ink-fg); }
+.attack-main .hint { margin-top: 6px; }
+.attack-main .hint .mono { color: var(--ink-fg); opacity: 0.9; }
 .attack-state { justify-self: end; }
-.attack-result { grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px; background: var(--stop-bg); border-radius: var(--radius-sm); font-size: 15px; }
-.attack-result strong { font-weight: 700; }
-.attack-result .row { gap: 12px; }
-.attack-result a { font-size: 14px; }
+/* A refusal is the point, so the button that asks for one is a warning, not a neutral pill. */
+.attack-row .btn.stop { background: #c8492f; color: #fff; font-weight: 600; padding-inline: 22px; }
+.attack-row .btn.stop:hover:not(:disabled) { filter: none; background: #d9563a; }
+.attack-result {
+  grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px 16px;
+  background: rgba(163, 42, 28, 0.22); border-left: 3px solid #e88b7e; border-radius: var(--radius-sm);
+  font-size: 15px; color: var(--ink-fg);
+}
+.attack-result strong { font-weight: 600; }
+.attack-result .err { color: #f3b5aa; }
+/* the reason code, the receipt and the retry are one line of actions: keep them grouped at the left, with the retry
+   pushed to the end so it does not float between the link and the edge */
+.attack-result .row { gap: 10px; align-items: center; margin-top: 2px; }
+.attack-result .row .link { margin-left: auto; font-size: 14px; }
+.attack-result a { font-size: 14px; color: var(--ink-fg); text-decoration: underline; text-underline-offset: 3px; }
+.attack-result .tag { background: rgba(244, 241, 234, 0.12); color: var(--ink-fg); }
+.attack-result .link { color: var(--ink-fg-2); }
+.attack .spinner.dark { border-color: var(--ink-line); border-top-color: var(--ink-fg); }
+.attack .chip.stop { background: rgba(232, 139, 126, 0.2); color: #f3b5aa; }
 
 /* ---------- footer: the addresses a judge wants without leaving the page ---------- */
 .foot {
@@ -420,10 +484,30 @@ body:has(.sheet) .toasts { right: auto; left: 16px; }
 
 /* ---------- proof: the same grouped-card rhythm, two runtimes side by side ---------- */
 .proof { margin-top: 34px; }
+/* a short, larger statement instead of another paragraph of body copy. The cap is wide enough that the sentence does
+   not leave one orphaned word on its own line in the 740px column it actually lands in. */
+.proof-lead { font-size: 19px; line-height: 1.45; letter-spacing: -0.01em; color: var(--ink); max-width: 62ch; text-wrap: pretty; }
+.proof-lead .mono { color: var(--ink-2); font-size: 0.88em; }
+/* Two cards side by side must share a bottom edge, or the shorter one leaves a hole that reads as a mistake. Stretching
+   them costs nothing because the content sits at the top of each. */
+/* (the alignment lives on the single .proof-grid rule below; a second declaration here was silently overridden) */
 .proof-balance { display: grid; gap: 4px; padding: 16px 18px; background: var(--card-2); border-radius: var(--radius); }
 .proof-balance strong { font-size: clamp(26px, 4.6vw, 34px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; display: flex; align-items: center; }
-.proof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
-.proof-card { background: var(--card); border: var(--hair) solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; align-content: start; }
+/* Two cards side by side must share a bottom edge, or the shorter one leaves a hole that reads as a mistake. Stretching
+   costs nothing because each card lays its own content out from the top. */
+.proof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.proof-card { background: var(--card); border: var(--hair) solid var(--line); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+/* the facts block takes the slack, so the evidence records of both cards line up along the same bottom edge */
+.proof-card .proof-facts { margin-bottom: auto; }
+/* the evidence rows are a quote of what the chain said, so they read as a record: a rule, not a coloured slab */
+.proof-link {
+  display: grid; gap: 2px; align-content: center;
+  background: transparent; border-left: 2px solid var(--stop);
+  border-radius: 0; padding: 9px 0 9px 14px; min-height: var(--hit);
+  color: var(--ink);
+}
+.proof-link.ok { border-left-color: var(--ok); }
+.proof-link:hover { background: var(--card-2); text-decoration: none; }
 .proof-card-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .proof-kind { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: var(--card-2); color: var(--ink-2); }
 .proof-kind.smart { background: var(--accent-weak); color: var(--accent); }
@@ -436,12 +520,6 @@ body:has(.sheet) .toasts { right: auto; left: 16px; }
 .proof-ok { color: var(--ok); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .proof-bad { color: var(--stop); font-size: 12px; font-weight: 700; }
 .proof-links { display: grid; gap: 8px; margin-top: 6px; }
-.proof-link {
-  display: grid; gap: 2px; padding: 11px 13px; border-radius: var(--radius-sm);
-  background: var(--stop-bg); color: var(--ink); min-height: var(--hit); align-content: center;
-}
-.proof-link.ok { background: var(--ok-bg); }
-.proof-link:hover { text-decoration: none; filter: brightness(0.97); }
 .proof-link-t { font-size: 15px; font-weight: 650; }
 .proof-link.ok .proof-link-t { color: var(--ok); }
 .proof-link:not(.ok) .proof-link-t { color: var(--stop); }
@@ -450,6 +528,14 @@ body:has(.sheet) .toasts { right: auto; left: 16px; }
 .proof-kernel dt { font-size: 12px; color: var(--ink-3); font-weight: 600; }
 .proof-kernel dd { margin: 3px 0 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 @media (max-width: 620px) {
+  /* the dark panel kept its desktop 24px gutter because the shorthand here beats the generic .panel-h rule above */
+  .attack .panel-h, .attack .panel-b, .proof .panel-h, .proof .panel-b { padding-left: 16px; padding-right: 16px; }
+  /* A button pinned to the right of a long sentence squeezes the text into a five-word column. Under a phone, let the
+     sentence use the full width and put the action under it, full width, where a thumb already is. */
+  .attack-row { grid-template-columns: 1fr; gap: 12px; padding: 16px; }
+  .attack-state { justify-self: stretch; }
+  .attack-state .btn { width: 100%; }
+  .attack-title { font-size: 16px; }
   .proof-grid, .proof-kernel { grid-template-columns: 1fr; }
   /* the agent row is the one that carries two labels: stack them on a phone instead of squeezing both right */
   .proof-facts div:first-child { flex-direction: column; gap: 2px; }

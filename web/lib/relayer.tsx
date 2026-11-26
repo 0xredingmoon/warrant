@@ -11,7 +11,10 @@ export interface RelayerStatus {
 
 /** Probe the configured relayer. Failures are quiet: the rest of the dashboard still works. */
 export function useRelayer(): RelayerStatus {
-  const [online, setOnline] = useState<boolean | null>(RELAYER_URL ? null : false);
+  // Always start unknown. RELAYER_URL comes from /config.js, which only exists in the browser, so reading it during
+  // the first render makes the prerendered HTML disagree with the client and React throws the tree away. Starting at
+  // null renders exactly the same nothing on both sides, and the "offline" note only appears once a probe has failed.
+  const [online, setOnline] = useState<boolean | null>(null);
   useEffect(() => {
     if (!RELAYER_URL) {
       setOnline(false);

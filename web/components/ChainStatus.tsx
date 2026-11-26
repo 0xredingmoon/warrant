@@ -24,7 +24,7 @@ export function ChainStatus() {
           {block.data !== undefined ? <> · block {block.data.toString()}</> : " · reading block…"}
           ). Factory{" "}
           <a className="mono" href={addrLink(FACTORY)} target="_blank" rel="noreferrer">{short(FACTORY, 4)}</a>
-          {EXPLORER ? <> · <a href={EXPLORER} target="_blank" rel="noreferrer">explorer</a></> : null}.
+          {EXPLORER ? <> · <a className="tap" href={EXPLORER} target="_blank" rel="noreferrer">explorer</a></> : null}.
         </>
       )}
     </p>

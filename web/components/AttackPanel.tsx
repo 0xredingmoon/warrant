@@ -90,9 +90,8 @@ export function AttackPanel() {
       </div>
       <div className="panel-b stack-sm">
         <p className="attack-lead">
-          This vault gives an agent a spending mandate. Below, that agent goes rogue and tries to break it. The agent
-          key really signs each payment; the contract checks the mandate inside the transaction and refuses. Nothing
-          moves, and the refusal is written on-chain, so you can open it yourself.
+          Give an agent a real mandate, then tell it to break it. Both payments below are signed for real and refused
+          by the vault on Aevum testnet.
         </p>
 
         <dl className="facts">
