@@ -25,6 +25,7 @@ contract that holds the funds is readable there. Each link opens the verified so
 | AgentRegistry | [`0xD0442513fd53FA91c411939648F9edbBF2ed747d`](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d) | [verified, AgentRegistry.sol](https://explorer-test.qday.info/address/0xD0442513fd53FA91c411939648F9edbBF2ed747d?tab=contract) |
 | Demo vault (scripted run) | [`0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16`](https://explorer-test.qday.info/address/0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16) | [verified, WarrantVault.sol](https://explorer-test.qday.info/address/0x363E657fc8c8Df213AC35f675AeCA0C3E6805a16?tab=contract) |
 | Demo vault (recorded video) | [`0xf864d54a695D48b3b222bff935018f2a779acd7c`](https://explorer-test.qday.info/address/0xf864d54a695D48b3b222bff935018f2a779acd7c) | [verified, WarrantVault.sol](https://explorer-test.qday.info/address/0xf864d54a695D48b3b222bff935018f2a779acd7c?tab=contract) |
+| Demo vault (the live "try the attack" page, and the two agent runtimes) | [`0xC3Cd5BEF962C78e5f673386f808046E9812e905e`](https://explorer-test.qday.info/address/0xC3Cd5BEF962C78e5f673386f808046E9812e905e) | [verified, WarrantVault.sol](https://explorer-test.qday.info/address/0xC3Cd5BEF962C78e5f673386f808046E9812e905e?tab=contract) |
 | tUSD8 (existing token) | [`0x456569838f1d43009A91ebA4263147Afd7233483`](https://explorer-test.qday.info/address/0x456569838f1d43009A91ebA4263147Afd7233483) | not ours |
 
 Deployment transactions (block 3661989): [AgentRegistry](https://explorer-test.qday.info/tx/0x90d2909f9233ad7488a986c86534b61979ea9c9c41b1dc47ee7f9e2dbc442c06),
@@ -147,6 +148,85 @@ fails, that call succeeds, moves nothing and emits `PaymentRefused(mandateId, ag
 So the attempt shows up in the explorer's logs for the vault, in the dashboard's activity list ("Refused on-chain") and in
 `getAuditLog`. A refusal costs the relayer gas, so each mandate logs at most 1,000 of them (`MAX_LOGGED_REFUSALS`) and the
 relayer rate-limits refusals per vault and per day. A plain `pay()` call still reverts with `PaymentRejected(reason)`.
+
+## Architecture
+
+The owner, the agent and the merchant never talk to each other directly. Everything that matters passes through one
+contract, and the agent can only ever hand it a signed request.
+
+```mermaid
+flowchart TB
+    subgraph people["Who acts"]
+        D["Owner<br/>browser wallet"]
+        K["Agent: plain key<br/>(EOA)"]
+        S["Agent: ERC-4337<br/>Kernel v3.1 account"]
+        M["Agent: any LLM<br/>via MCP server"]
+    end
+
+    subgraph offchain["Off-chain services"]
+        REL["Relayer<br/>pays gas, rate limits,<br/>x402 facilitator"]
+        BUND["ERC-4337 bundler<br/>bundler.qday.info"]
+        MER["Merchant<br/>HTTP 402 paywall"]
+    end
+
+    subgraph contracts["On-chain: Aevum 44005"]
+        F["WarrantFactory<br/>deploys vaults"]
+        V["WarrantVault<br/>mandate rules, funds,<br/>audit log"]
+        R["AgentRegistry<br/>ERC-8004-shaped<br/>identity and feedback"]
+        T["tUSD8<br/>6 decimals"]
+    end
+
+    EXP["Blockscout explorer<br/>read by the dashboard<br/>and by any judge"]
+
+    D -- "deposit, create or revoke<br/>mandate, approve a queued<br/>payment" --> V
+    D -. "createVault" .-> F
+    K -- "EIP-712 PaymentIntent<br/>to the relayer" --> REL
+    M -- "check_mandate,<br/>pay_with_mandate" --> REL
+    S -- "UserOp" --> BUND
+
+    REL -- "payOrRefuse(intent, sig)<br/>submits for both runtimes" --> V
+    BUND -- "execute: carry the UserOp<br/>into payOrRefuse" --> V
+    F -. "deploys" .-> V
+
+    V <--> T
+    V -. "PaymentExecuted and<br/>PaymentRefused are its own log;<br/>a paid receipt also goes to R" .-> R
+
+    MER -. "402, then re-reads the<br/>vault event before serving" .-> V
+    REL -. "recordReceipt" .-> R
+
+    V -. "logs" .-> EXP
+    EXP -. "reads" .-> D
+```
+
+What makes the two agent runtimes one story: `MandateParams.agent` is just an address, and `payOrRefuse` checks its
+signature with `SignatureChecker`, so an EOA and an ERC-1271 smart account are the same to the vault. The owner does not
+run one dashboard per runtime. Every agent that was ever granted a mandate writes its refusals and payments into the
+same vault log.
+
+### Environment variables
+
+Every variable, grouped by the process that reads it. Defaults are the ones in the code, so a testnet run needs only the
+required column set.
+
+| Process | Variable | Required | Default and meaning |
+| --- | --- | --- | --- |
+| deploy scripts | `DEPLOYER_PRIVATE_KEY` | yes | Testnet key with tQDAY for gas, funding the deploy. |
+| deploy scripts | `TUSD8`, `TREASURY`, `FEE_BPS`, `AEVUM_RPC_URL` | no | `0x456569838f1d43009A91ebA4263147Afd7233483`, the deployer, `10`, `https://rpc-test.qday.info`. |
+| demo vault | `DEMO_PRIVATE_KEY`, `DEMO_AGENT_ADDRESS`, `DEMO_MERCHANT_ADDRESS`, `DEMO_DEPOSIT` | no | Owner key, the agent the mandate names, the one allowed merchant, `5` tUSD8 funded. |
+| relayer | `RELAYER_PRIVATE_KEY`, `FACTORY_ADDRESS` | yes | Hot key that pays gas; the factory whose vaults the relayer will serve. |
+| relayer | `RPC_URL`, `CHAIN_ID`, `PORT` | no | `https://rpc-test.qday.info`, `44005`, `8787`. |
+| relayer | `RELAYER_API_KEY` | no | If set, every POST needs `Authorization: Bearer …`. |
+| relayer | `RATE_PER_MINUTE_IP`, `RATE_PER_MINUTE_VAULT`, `DAILY_TX_CAP` | no | `60`, `30`, `500`, counted in SQLite so they survive a restart. |
+| relayer | `REFUSALS_PER_HOUR_VAULT`, `DAILY_REFUSAL_CAP` | no | `20`, `200`: caps on the on-chain refusals the relayer pays gas for. |
+| relayer | `DATABASE_PATH` | no | `./data/relayer.db`, or `/tmp/relayer.db` on serverless, with in-memory as the last fallback. |
+| relayer | `INDEXER_URL`, `TRUSTED_IP_HEADER` | no | The explorer; a proxy header such as `x-forwarded-for`. |
+| relayer, demo | `DEMO_VAULT`, `DEMO_AGENT_KEY`, `DEMO_ALLOWED_MERCHANT` | no | Turns on the "Try the attack" demo. Refuses to start if only some are set. |
+| MCP server | `WARRANT_VAULT`, `WARRANT_MANDATE_ID`, `AGENT_PRIVATE_KEY` | yes | Which vault, which mandate, and the agent key that signs. |
+| MCP server | `RELAYER_URL`, `RELAYER_API_KEY`, `RPC_URL`, `CHAIN_ID`, `EXPLORER_URL` | no | Where to submit, and how to read the chain back. |
+| merchant | `TOKEN_ADDRESS`, `VAULT`, `DATABASE_PATH`, `PORT` | vault yes | Which token, which vault to verify against, invoices store, listen port. |
+| merchant | `FACILITATOR_API_KEY`, `RELAYER_URL` | no | For the x402 facilitator path. |
+| dashboard | `NEXT_PUBLIC_RELAYER_URL`, `NEXT_PUBLIC_FACTORY`, `NEXT_PUBLIC_REGISTRY` | build time | Baked at build time; the deployed `config.js` can override them at runtime. |
+| dashboard | `NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_RPC_URL`, `NEXT_PUBLIC_EXPLORER`, `NEXT_PUBLIC_INDEXER_URL`, `NEXT_PUBLIC_DEPLOY_BLOCK`, `NEXT_PUBLIC_BASE_PATH` | no | `44005`, the public RPC and explorer, the factory block, and `/warrant` for GitHub Pages. |
 
 ## Repository
 

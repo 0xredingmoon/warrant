@@ -1,6 +1,9 @@
 "use client";
 import { useEffect } from "react";
 import { useWallet } from "@/lib/wallet";
+import { EXPLORER, FACTORY, REGISTRY, TOKEN } from "@/lib/config";
+import { short } from "@/lib/format";
+import { PROOF_VAULT } from "@/lib/proof";
 import { AttackPanel } from "./AttackPanel";
 import { ChainStatus } from "./ChainStatus";
 import { ConnectButton } from "./Header";
@@ -103,6 +106,54 @@ export function Landing() {
           <p>A merchant serves a request after reading the payment event from the vault. Paid invoices build a receipt-bound reputation for the agent.</p>
         </div>
       </section>
+
+      <footer className="foot">
+        <div>
+          <h3>Read the code that holds the money</h3>
+          <p className="hint">
+            The three Warrant contracts are source-verified on the Aevum explorer, so the exact code that holds funds is
+            readable there, not only the address. tUSD8 is the testnet token this project did not write, so it is not
+            verified; it is listed so you can check a balance.
+          </p>
+        </div>
+        <dl className="foot-links">
+          <div>
+            <dt>WarrantVault (demo) · verified</dt>
+            <dd>
+              <a href={`${EXPLORER}/address/${PROOF_VAULT}?tab=contract`} target="_blank" rel="noreferrer" className="mono" title={PROOF_VAULT}>
+                {short(PROOF_VAULT, 6)}
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt>WarrantFactory · verified</dt>
+            <dd>
+              <a href={`${EXPLORER}/address/${FACTORY}?tab=contract`} target="_blank" rel="noreferrer" className="mono" title={FACTORY}>
+                {short(FACTORY, 6)}
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt>AgentRegistry · verified</dt>
+            <dd>
+              <a href={`${EXPLORER}/address/${REGISTRY}?tab=contract`} target="_blank" rel="noreferrer" className="mono" title={REGISTRY}>
+                {short(REGISTRY, 6)}
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt>tUSD8 · not ours</dt>
+            <dd>
+              <a href={`${EXPLORER}/address/${TOKEN}`} target="_blank" rel="noreferrer" className="mono" title={TOKEN}>
+                {short(TOKEN, 6)}
+              </a>
+            </dd>
+          </div>
+        </dl>
+        <p className="hint foot-note">
+          Aevum testnet, chain 44005. Testnet only, not audited. The relayer pays gas; the agent keys hold none.
+        </p>
+      </footer>
     </div>
   );
 }
