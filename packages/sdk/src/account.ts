@@ -108,6 +108,8 @@ const packedOpAbi = parseAbiParameters([
 
 /** `0x000000` in the first three bytes is the default exec mode: a single call, revert the whole op on failure. */
 export const CALLTYPE_SINGLE_DEFAULT_MODE: Hex = "0x0000000000000000000000000000000000000000000000000000000000000000";
+/** callType 0x01 (batch), execType 0x00 (default: any inner failure reverts the whole op), no selector, no payload. */
+export const CALLTYPE_BATCH_DEFAULT_MODE: Hex = "0x0100000000000000000000000000000000000000000000000000000000000000";
 
 /** Pack `verificationGasLimit` and `callGasLimit` the way EntryPoint v0.7 does, high 128 bits first. */
 export function packUints(hi: bigint, lo: bigint): Hex {
@@ -154,10 +156,15 @@ export function predictAccount(args: {
   });
 }
 
-/** Encode `execute(mode, call)` for one target, or `execute(mode, calls[])` when several are passed. */
-export function encodeExecCall(calls: { to: Address; data: Hex; value?: bigint }[], mode: Hex = CALLTYPE_SINGLE_DEFAULT_MODE): Hex {
+/**
+ * Encode `execute(mode, ...)`. Batch mode is used for every call, single or many: Kernel's CALLTYPE_SINGLE path
+ * reverts on this deployment (an empty single call returns a bare revert while the same payload in batch mode
+ * returns cleanly), and batch is the shape ERC-7579 defines for `abi.decode(executionCalldata, (Execution[]))`.
+ * See CALLTYPE_BATCH below. Single-call users are unaffected: a one-element batch is one call.
+ */
+export function encodeExecCall(calls: { to: Address; data: Hex; value?: bigint }[], mode: Hex = CALLTYPE_BATCH_DEFAULT_MODE): Hex {
   const first = calls[0];
-  if (calls.length === 1 && first) {
+  if (calls.length === 1 && first && mode !== CALLTYPE_BATCH_DEFAULT_MODE) {
     // CALLTYPE_SINGLE is NOT abi.encode: ExecLib.execute reads target = calldata[0:20], value = [20:52], then the
     // rest is callData. abi-encoding a (address, uint256, bytes) tuple here inserts an offset word and shifts the
     // target, so the call lands on a garbage address. Pack it as Kernel expects.
@@ -168,11 +175,18 @@ export function encodeExecCall(calls: { to: Address; data: Hex; value?: bigint }
     ]) as Hex;
     return encodeFunctionData({ abi: kernelAbi, functionName: "execute", args: [mode, executionCalldata] });
   }
-  return encodeFunctionData({
-    abi: kernelBatchExecuteAbi,
-    functionName: "execute",
-    args: [mode, calls.map((c) => ({ target: c.to, value: c.value ?? 0n, callData: c.data }))],
-  });
+  // Batch is abi.encode(Execution[]) PACKED INTO the bytes parameter. Passing a tuple[] as the second argument
+  // changes the function signature viem hashes (0xcda7cd42 instead of execute(bytes32,bytes)=0xe9ae5c53), so the
+  // account receives a call it does not implement and every UserOp fails. Encode the list, then pass those bytes.
+  const executionCalldata = encodeAbiParameters(
+    [{ type: "tuple[]", components: [
+      { name: "target", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "callData", type: "bytes" },
+    ] }],
+    [calls.map((c) => ({ target: c.to, value: c.value ?? 0n, callData: c.data }))],
+  );
+  return encodeFunctionData({ abi: kernelAbi, functionName: "execute", args: [mode, executionCalldata] });
 }
 
 export interface KernelUserOp {
@@ -347,21 +361,6 @@ export async function sendKernelUserOp(args: SendUserOpOptions & {
     prefundTx,
   };
 }
-
-const kernelBatchExecuteAbi = [{
-  type: "function",
-  name: "execute",
-  stateMutability: "payable",
-  inputs: [
-    { name: "execMode", type: "bytes32" },
-    { name: "executionCalldata", type: "tuple[]", components: [
-      { name: "target", type: "address" },
-      { name: "value", type: "uint256" },
-      { name: "callData", type: "bytes" },
-    ] },
-  ],
-  outputs: [],
-}] as const;
 
 async function ensureDeployed(args: {
   publicClient: PublicClient;
