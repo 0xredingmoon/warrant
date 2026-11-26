@@ -150,6 +150,7 @@ relayer rate-limits refusals per vault and per day. A plain `pay()` call still r
 | `packages/mcp` | `@warrant/mcp`: MCP server with `check_mandate` and `pay_with_mandate` |
 | `packages/demo` | The scenario above, runnable on a fork or on Aevum; `src/serve.ts` runs the demo merchant and notes site as long-lived services; `src/video.ts` records the demo video |
 | `web/` | Next.js owner dashboard (viem, injected wallet); builds to static files |
+| `scripts/kernel-account-demo.mjs` | Runs the agent as a Kernel smart account against the demo vault (mandate #2, refused overspend, in-rule payment) |
 | `Dockerfile`, `docker-compose.yml`, `api/`, `vercel.json`, `deploy/hf-space`, `render.yaml`, `fly.toml`, `railway.json` | Container and hosting configs, see [Live demo](#live-demo) and [Docker and hosting](#docker-and-hosting) |
 | `docs/` | [`DESIGN.md`](docs/DESIGN.md), [`BUSINESS.md`](docs/BUSINESS.md), [`gas-report.md`](docs/gas-report.md), [`live-run.md`](docs/live-run.md) |
 
@@ -365,6 +366,71 @@ Waits for block confirmation are sped up and marked on screen.
 Roles, reason codes and the threat model: [`docs/DESIGN.md`](docs/DESIGN.md). Business model and what is and is
 not proven: [`docs/BUSINESS.md`](docs/BUSINESS.md).
 
+## The agent as a smart account
+
+An agent can be an ERC-4337 Kernel v3.1 account, and the mandate can name that account as its agent instead of a
+key. The account signs the `PaymentIntent` as a contract (ERC-1271), submits `WarrantVault.payOrRefuse` in a UserOp
+through the bundler, and the vault applies the mandate exactly as it does for an EOA agent. Nothing in the Solidity
+changes: `MandateParams.agent` was already documented as "EOA or ERC-1271 contract", and `payOrRefuse` verifies with
+`SignatureChecker.isValidSignatureNow`, which is the ERC-1271 call.
+
+| Fact | Value | Evidence |
+| --- | --- | --- |
+| EntryPoint v0.7 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `eth_supportedEntryPoints` on the bundler |
+| KernelFactory | `0xaac5D4240AF87249B3f71BC8E4A2cae074A3E419` | `getAddress` and `createAccount` used below |
+| Kernel implementation | `0xBAC849bB641841b44E965fB01A4Bf5F074f84b4D` | `accountId()` returns `kernel.advanced.v0.3.1` |
+| Root validator | `0x845adb2c711129d4f3966735ed98a9f09fc4ce57` | `rootValidator()` returns `0x01` + this address |
+| Smart account | `0xA2eA6Be31038eE2282FBB8a9d5FFECc06d095c2c` | 61-byte proxy, deployed by the factory |
+| The spike (first UserOp) | userOpHash `0xf8342d26178222830b45f7905afea73622b5ce5e64693e312a551afe8c6f859b` | [tx 0x68214f2f...](https://explorer-test.qday.info/tx/0x68214f2fedd8d426e28fef3198bd3280fa9e21309bd4ccccb2045072d8bf01ef) |
+| Refused by the mandate | 250.00 tUSD8, `ExceedsPerTxCap` (reason 9) | [tx 0xfeb0767c...](https://explorer-test.qday.info/tx/0xfeb0767cf6a2cc1ad3c3d21a5d59d56ad19c2424bd653f1d116de1f664517157) |
+| Paid inside the mandate | 0.05 tUSD8, `PaymentExecuted`, 0.00005 fee | [tx 0x83ca3059...](https://explorer-test.qday.info/tx/0x83ca30591b3e900baf72f6a0979d5755a92ae6c02eb0af7a69e3c3f1f356eef5) |
+
+Both payments are on the demo vault `0xC3Cd5BEF962C78e5f673386f808046E9812e905e`, mandate #2, whose agent is the
+account. `deployments/kernel-account-demo.json` records the same hashes.
+
+### The signature the account gives the vault
+
+Two signatures come out of the same owner key and they are not interchangeable. The UserOp signature goes to the
+EntryPoint and is a plain EIP-191 signature over `getUserOpHash`. The mandate signature goes to the vault, which
+calls the account's `isValidSignature` (ERC-1271). Kernel does not accept a bare 65-byte signature there: it reads a
+validation envelope from the front of the signature, then checks the rest against `Kernel(bytes32 hash)`, its own
+EIP-712 wrapper over the digest. The form that verifies is
+
+```
+0x00  ||  EIP-191( hashTypedData( Kernel(bytes32 hash), hash = vault intent digest ) )
+```
+
+`0x00` is the root-validator envelope, the type hash is `keccak256("Kernel(bytes32 hash)")`
+(`0x1547321c...`, not `KernelWrapper(...)`), and the domain is `name: "Kernel", version: "0.3.1"`. `@warrant/sdk`
+builds it: `signIntentAsAccount` and `payWithSmartAccount`.
+
+### Four constraints Aevum imposes, learned by hitting them
+
+1. The account pays its own prefund. There is no paymaster, so the account needs tQDAY before the UserOp is
+   validated, or the bundler answers `AA21 didn't pay prefund`.
+2. The account is deployed before the UserOp, not in `initCode`. The factory is not staked on the EntryPoint, and
+   EntryPoint v0.7 refuses a counterfactual deployment that touches the validator's storage. `createAccount` is
+   permissionless and its address does not depend on the caller, so an ordinary transaction to the factory lands the
+   account at the predicted address, and the UserOp carries `initCode: "0x"`.
+3. The call is `execute(bytes32, bytes)`. A single call is packed as `target || value || callData`, and a batch is
+   `abi.encode(Execution[])` in the `bytes` argument.
+4. The bundler is slow. It accepts the UserOp, holds it, and mines it minutes later. Poll `eth_getUserOperationReceipt`
+   and do not treat a null receipt as a failure.
+
+Running it:
+
+```bash
+# both keys live in .demo/ (gitignored): the vault owner, and the account's owner key
+cd packages/sdk && node ../../scripts/kernel-account-demo.mjs          # issues mandate #2 if missing, then pays
+cd packages/sdk && node ../../scripts/kernel-account-demo.mjs --plan   # print the plan, no transactions
+```
+
+The script refuses to run unless `.demo/demo-deployer.key` owns the demo vault, so it cannot accidentally write to a
+vault it does not control. `packages/relayer/test/smart-account.test.ts` exercises the policy path against a local
+chain: the vault's own `check` accepting the account's ERC-1271 signature, the overspend refused, an in-rule payment
+accepted, and a bare signature rejected. The bundled call into the vault is proved by the two Aevum transactions
+above, not by that test, because the locally compiled Kernel does not route `execute` on anvil.
+
 ## Contracts
 
 | Contract | |
@@ -391,8 +457,10 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
   the real domain.
 - Legacy transactions only. `eth_getLogs` is limited to 1,000 blocks and there is no WebSocket, so the UI and SDK poll
   in chunks.
-- No ERC-4337 bundler or paymaster is available. Warrant does not need one: payments are relayed signed intents and
-  deposits use EIP-3009.
+- ERC-4337 is live. EntryPoint v0.7 is at `0x0000000071727De22E5E9d8BAf0edAc6f37da032` and a bundler answers at
+  `https://bundler.qday.info`; there is no paymaster, so an account pays its own prefund in tQDAY. Warrant uses it for
+  an agent that is itself a smart account (see [The agent as a smart account](#the-agent-as-a-smart-account)); plain
+  agents still use relayed signed intents and EIP-3009 deposits, and need no bundler.
 
 ## Tests
 
@@ -413,7 +481,10 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
   but a relayer that pays for every refusal can still be drained slowly; a hosted one would charge for it.
 - SQLite files belong to one process each. Running several relayers needs a shared database.
 - The `warrant` x402 scheme is ours. Stock x402 clients and facilitators cannot use it.
-- No ERC-4337 bundler exists on Aevum, so there is no account abstraction here; the vault is the account.
+- Account abstraction is one shape here, not the only one: the vault is still the account for a plain EOA agent. The
+  smart-account path needs a funded account, because Aevum has no paymaster to pay the prefund.
+- The bundler batches slowly and sometimes holds an accepted UserOp for minutes. Resending at the same gas price is
+  refused as "replacement underpriced"; the SDK raises the price and resends once.
 - The identity and reputation registry is our own ERC-8004-shaped contract, not the official registry.
 - tUSD8 is admin-pausable; a paused token makes payments revert without changing state.
 - The compose file and the hosting configs have not been deployed on a hosting provider.
