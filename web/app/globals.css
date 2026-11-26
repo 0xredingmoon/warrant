@@ -7,34 +7,44 @@
  */
 
 :root {
-  /* Warm paper ground, not systemGroupedBackground. A warrant is a sealed document, so the page is stock and ink
-     rather than a settings screen. Keeping the iOS *structure* (grouped cards, hairlines, 44px targets) while giving
-     Warrant its own tint is what every system app does: Notes is yellow, Photos is black, this is paper. */
-  --bg: #f4f1ea;
-  --card: #fffdf8;
-  --card-2: #efeade;
-  --sunk: #e3ddcd;
-  --ink: #17140f;
-  --ink-2: #45403a;
-  --ink-3: #7c766b;
-  --line: rgba(23, 20, 15, 0.13);
-  --line-strong: rgba(23, 20, 15, 0.26);
-  /* The accent is a deep seal indigo. Green, amber and red stay reserved for state, so nothing interactive is ever
-     mistaken for "paid", "waiting" or "refused". */
-  --accent: #2f3a73;
-  --accent-weak: rgba(47, 58, 115, 0.10);
-  --ok: #1c6b47;
-  --ok-bg: rgba(28, 107, 71, 0.11);
-  --warn: #8a4d06;
-  --warn-bg: rgba(138, 77, 6, 0.12);
-  --stop: #a32a1c;
-  --stop-bg: rgba(163, 42, 28, 0.10);
-  /* the instrument: a dark surface that makes the live demo the one dominant element on the page */
-  --ink-bg: #1b1814;
-  --ink-bg-2: #262119;
-  --ink-fg: #f4f1ea;
-  --ink-fg-2: #b8b1a3;
-  --ink-line: rgba(244, 241, 234, 0.14);
+  /* A warrant is a document, and a document is black ink on neutral stock. So the chrome here carries no hue at all:
+     paper grey, four greys of ink, hairline rules. Colour is spent on one thing only, which is whether a payment was
+     paid, refused, or is waiting for a human, so a visitor can read the page's state from across the room and nothing
+     decorative can ever be mistaken for a verdict. Earlier this page ran ten hues (cream, indigo, green, amber, brick,
+     brown-black, orange, terracotta, salmon, mint) and every one of them competed. */
+  --bg: #ececea;             /* cool paper, near zero chroma: not cream, which is the giveaway tint */
+  --card: #fafaf8;
+  --card-2: #f0f0ed;
+  --sunk: #e0e0dc;
+  --ink: #131518;
+  --ink-2: #3f4348;
+  --ink-3: #767b81;
+  --line: rgba(19, 21, 24, 0.12);
+  --line-strong: rgba(19, 21, 24, 0.24);
+  /* Interactive chrome is ink, not a hue. A printed document has one colour of ink and buttons that are filled with it,
+     so links, primary buttons and focus rings are all the same near-black. This is also why the name survives while
+     its value is monochrome: no rule downstream needed to change. */
+  --accent: #131518;
+  --accent-weak: rgba(19, 21, 24, 0.06);
+  --accent-fg: #fafaf8;      /* text on a filled ink surface */
+  /* The only three hues on the page, all pulled dark and low-chroma so they sit on paper like a stamp rather than
+     glowing like a dashboard badge. They are state, and they are load bearing. */
+  --ok: #2c6b4f;             /* settled */
+  --ok-bg: rgba(44, 107, 79, 0.10);
+  --warn: #8a6520;           /* awaiting a human: ochre wax, not the iOS orange that was here */
+  --warn-bg: rgba(138, 101, 32, 0.11);
+  --stop: #9c3a34;           /* refused */
+  --stop-bg: rgba(156, 58, 52, 0.09);
+  /* a refusal is the one destructive action in the product, so it also needs a fill, not only a text colour */
+  --stop-fill: #9c3a34;
+  --stop-on: #fafaf8;
+  /* the instrument: the same ink family as the page text, taken to a dark surface, so the live demo is the one
+     dominant element without introducing a second palette */
+  --ink-bg: #17191c;
+  --ink-bg-2: #22252a;
+  --ink-fg: #eceef0;
+  --ink-fg-2: #a8adb4;
+  --ink-line: rgba(236, 238, 240, 0.15);
   --radius: 14px;
   --radius-sm: 10px;
   --radius-lg: 22px;
@@ -48,28 +58,36 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14120e;
-    --card: #1e1a15;
-    --card-2: #272219;
-    --sunk: #2f2a20;
-    --ink: #f6f3ec;
-    --ink-2: #cdc6b8;
-    --ink-3: #928b7d;
-    --line: rgba(246, 243, 236, 0.12);
-    --line-strong: rgba(246, 243, 236, 0.24);
-    --accent: #a8b0e8;
-    --accent-weak: rgba(168, 176, 232, 0.14);
-    --ok: #6fcaa0;
-    --ok-bg: rgba(111, 202, 160, 0.14);
-    --warn: #e0a45c;
-    --warn-bg: rgba(224, 164, 92, 0.14);
-    --stop: #e88b7e;
-    --stop-bg: rgba(232, 139, 126, 0.14);
-    --ink-bg: #0b0a08;
-    --ink-bg-2: #171410;
-    --ink-fg: #f6f3ec;
-    --ink-fg-2: #a8a193;
-    --ink-line: rgba(246, 243, 236, 0.12);
+    --bg: #101113;
+    --card: #1a1c1f;
+    --card-2: #23262a;
+    --sunk: #2c2f34;
+    --ink: #f0f2f4;
+    --ink-2: #c3c7cc;
+    --ink-3: #8b9097;
+    --line: rgba(240, 242, 244, 0.13);
+    --line-strong: rgba(240, 242, 244, 0.26);
+    /* on a dark ground the filled surface has to become the light one, or a primary button vanishes into the paper */
+    --accent: #f0f2f4;
+    --accent-weak: rgba(240, 242, 244, 0.09);
+    --accent-fg: #131518;
+    /* the same three states, lifted only as far as legibility needs, keeping their own chroma so they still read as
+       the same stamps rather than switching to a different palette at night */
+    --ok: #74bf9b;
+    --ok-bg: rgba(116, 191, 155, 0.13);
+    --warn: #d3a458;
+    --warn-bg: rgba(211, 164, 88, 0.13);
+    --stop: #e0857d;
+    --stop-bg: rgba(224, 133, 125, 0.13);
+    --stop-fill: #b8453d;
+    --stop-on: #f7f0ef;
+    /* On a dark page the instrument cannot be the darkest surface, which is what it was: it read as a hole rather
+       than the dominant element. It lifts instead, one step above the cards, so it still pulls the eye first. */
+    --ink-bg: #1c1f23;
+    --ink-bg-2: #262a2f;
+    --ink-fg: #f0f2f4;
+    --ink-fg-2: #a2a7ae;
+    --ink-line: rgba(240, 242, 244, 0.13);
     --shadow: none;
   }
 }
@@ -125,7 +143,7 @@ h1, h2, h3, p { margin: 0; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: var(--hit); min-width: var(--hit);
   padding: 10px 18px; border: 0; border-radius: 12px;
-  background: var(--accent); color: #fff;
+  background: var(--accent); color: var(--accent-fg);
   font-size: 16px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15;
   cursor: pointer; text-decoration: none; white-space: nowrap;
   transition: transform 0.12s var(--ease), opacity 0.12s var(--ease), background-color 0.12s var(--ease);
@@ -135,7 +153,7 @@ h1, h2, h3, p { margin: 0; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn.quiet { background: var(--card-2); color: var(--accent); }
 .btn.quiet:hover:not(:disabled) { background: color-mix(in srgb, var(--card-2) 80%, var(--ink-3) 20%); }
-.btn.stop { background: var(--stop); border-color: var(--stop); color: #fff; }
+.btn.stop { background: var(--stop); border-color: var(--stop); color: #fafaf8; }
 .btn.stop-quiet { background: var(--stop-bg); color: var(--stop); }
 .btn.sm { min-height: var(--hit); padding: 8px 16px; font-size: 15px; }
 .link {
@@ -203,7 +221,7 @@ a.tap::after { content: ""; position: absolute; inset: -13px -6px; }
 .head .sub { color: var(--ink-3); margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 15px; }
 .head-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%238a8a8e' stroke-width='2' stroke-linecap='round'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23767b81' stroke-width='2' stroke-linecap='round'/></svg>");
   background-repeat: no-repeat; background-position: right 14px center; }
 
 .balance { display: grid; gap: 4px; }
@@ -224,7 +242,7 @@ select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
 .meter-l span:last-child { font-variant-numeric: tabular-nums; color: var(--ink-3); }
 .meter { height: 8px; background: var(--sunk); border-radius: 4px; overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s var(--ease); }
-.meter i.hot { background: #ff9500; }
+.meter i.hot { background: var(--warn); }
 .meter i.full { background: var(--stop); }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px 18px; font-size: 15px; margin: 0; }
 .facts dt { color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
@@ -250,7 +268,7 @@ select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
 .log time { font-size: 13px; color: var(--ink-3); white-space: nowrap; }
 .log .kind { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--ink-3); vertical-align: middle; }
 .log .kind.pay { background: var(--ok); }
-.log .kind.queue { background: #ff9500; }
+.log .kind.queue { background: var(--warn); }
 .log .kind.stop { background: var(--stop); }
 .log .refused-tag { color: var(--stop); font-weight: 700; font-size: 13px; margin-right: 8px; }
 .log a { font-size: 13px; white-space: nowrap; color: var(--accent); }
@@ -319,7 +337,10 @@ select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
   max-width: 15ch;           /* a serif this size needs a short measure or it reads as a wall */
   text-wrap: balance;
 }
-.hero h1 em { color: var(--accent); font-style: italic; }
+/* No coloured word in the headline. Accenting one phrase with a hue is the commonest generated-page tell, and it also
+   spent the accent twice: once as "the brand" and once as "look here". The italic alone carries the emphasis, which is
+   what a document does. */
+.hero h1 em { font-style: italic; }
 .hero p.lead { margin-top: 24px; font-size: 18px; line-height: 1.5; color: var(--ink-2); max-width: 44ch; }
 .hero .cta { margin-top: 28px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 /* align the table's first line with the headline's cap height rather than its box top */
@@ -347,22 +368,22 @@ select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
 /* ---------- toasts ---------- */
 .toasts { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); display: grid; gap: 10px; z-index: 60; width: min(380px, calc(100vw - 32px)); }
 .toast {
-  position: relative; background: color-mix(in srgb, var(--ink) 92%, transparent); color: #fff;
+  position: relative; background: color-mix(in srgb, var(--ink) 92%, transparent); color: var(--bg);
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   border-radius: var(--radius); padding: 14px 44px 14px 16px; font-size: 15px; display: grid; gap: 4px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 .toast p { color: rgba(255, 255, 255, 0.78); font-size: 14px; }
-.toast a { color: #fff; font-size: 13px; }
+.toast a { color: var(--ink-fg); font-size: 13px; }
 .toast-main { display: flex; gap: 10px; align-items: center; }
-.toast-main .muted { color: #8fd1bd; font-size: 14px; }
+.toast-main .muted { color: var(--ink-fg-2); font-size: 14px; }
 .toast-neutral { background: color-mix(in srgb, var(--card) 94%, transparent); color: var(--ink); border: var(--hair) solid var(--line); }
 .toast-neutral p { color: var(--ink-2); }
 .toast-neutral a, .toast-neutral .toast-x { color: var(--ink); }
 .toast-error { background: var(--stop); }
-.toast-error p { color: #ffe7e1; }
+.toast-error p { color: #f7e6e3; }
 .toast-x { position: absolute; top: 4px; right: 4px; background: none; border: 0; color: inherit; font-size: 22px; cursor: pointer; line-height: 1; width: var(--hit); height: var(--hit); display: grid; place-items: center; border-radius: 999px; }
-.spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; animation: spin 0.8s linear infinite; flex: none; }
+.spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent-fg) 38%, transparent); border-top-color: var(--accent-fg); animation: spin 0.8s linear infinite; flex: none; }
 .skel { background: linear-gradient(90deg, var(--sunk), var(--card-2), var(--sunk)); background-size: 200% 100%; animation: sh 1.4s linear infinite; border-radius: 8px; height: 16px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes sh { to { background-position: -200% 0; } }
@@ -406,7 +427,8 @@ select.input { padding-right: 34px; appearance: none; -webkit-appearance: none;
 .meters.muted .meter-l { color: var(--ink-3); }
 .waiting { display: inline-flex; align-items: center; gap: 8px; }
 .spinner.dark { border-color: var(--line-strong); border-top-color: var(--ink); }
-.btn .spinner { border-color: rgba(255, 255, 255, 0.35); border-top-color: #fff; }
+/* the spinner sits on the filled button, which is light in dark mode, so it takes the button's own foreground */
+.btn .spinner { border-color: color-mix(in srgb, var(--accent-fg) 38%, transparent); border-top-color: var(--accent-fg); }
 .btn.quiet .spinner, .btn.stop-quiet .spinner { border-color: var(--line-strong); border-top-color: var(--ink); }
 .note { font-size: 14px; color: var(--ink-2); background: var(--card-2); border-radius: var(--radius-sm); padding: 12px 14px; }
 .sub-gas { font-size: 14px; color: var(--ink-3); }
@@ -427,7 +449,7 @@ body:has(.sheet) .toasts { right: auto; left: 16px; }
 .attack {
   background: var(--ink-bg); color: var(--ink-fg);
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 60px -24px rgba(23, 20, 15, 0.45);
+  box-shadow: 0 24px 60px -24px rgba(19, 21, 24, 0.42);
 }
 .attack .panel-h { border-bottom: var(--hair) solid var(--ink-line); padding: 18px 24px 14px; }
 .attack .panel-h h2 { color: var(--ink-fg); }
@@ -450,25 +472,27 @@ body:has(.sheet) .toasts { right: auto; left: 16px; }
 .attack-main .hint { margin-top: 6px; }
 .attack-main .hint .mono { color: var(--ink-fg); opacity: 0.9; }
 .attack-state { justify-self: end; }
-/* A refusal is the point, so the button that asks for one is a warning, not a neutral pill. */
-.attack-row .btn.stop { background: #c8492f; color: #fff; font-weight: 600; padding-inline: 22px; }
-.attack-row .btn.stop:hover:not(:disabled) { filter: none; background: #d9563a; }
+/* Red belongs to the refusal, which is the result. The button that asks for one is only an invitation, so it is filled
+   ink like every other primary action; painting it red spent the state colour on a verb and put two crimson pills
+   where the page should be quiet. When the vault refuses, the result row below turns --stop and earns the colour. */
+.attack-row .btn.stop { background: var(--ink-fg); color: var(--ink-bg); border-color: var(--ink-fg); font-weight: 600; padding-inline: 22px; }
+.attack-row .btn.stop:hover:not(:disabled) { filter: brightness(0.92); }
 .attack-result {
   grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px 16px;
-  background: rgba(163, 42, 28, 0.22); border-left: 3px solid #e88b7e; border-radius: var(--radius-sm);
+  background: var(--stop-bg); border-left: 3px solid var(--stop); border-radius: var(--radius-sm);
   font-size: 15px; color: var(--ink-fg);
 }
 .attack-result strong { font-weight: 600; }
-.attack-result .err { color: #f3b5aa; }
+.attack-result .err { color: var(--stop); }
 /* the reason code, the receipt and the retry are one line of actions: keep them grouped at the left, with the retry
    pushed to the end so it does not float between the link and the edge */
 .attack-result .row { gap: 10px; align-items: center; margin-top: 2px; }
 .attack-result .row .link { margin-left: auto; font-size: 14px; }
 .attack-result a { font-size: 14px; color: var(--ink-fg); text-decoration: underline; text-underline-offset: 3px; }
-.attack-result .tag { background: rgba(244, 241, 234, 0.12); color: var(--ink-fg); }
+.attack-result .tag { background: rgba(236, 238, 240, 0.12); color: var(--ink-fg); }
 .attack-result .link { color: var(--ink-fg-2); }
 .attack .spinner.dark { border-color: var(--ink-line); border-top-color: var(--ink-fg); }
-.attack .chip.stop { background: rgba(232, 139, 126, 0.2); color: #f3b5aa; }
+.attack .chip.stop { background: var(--stop-bg); color: var(--stop); }
 
 /* ---------- footer: the addresses a judge wants without leaving the page ---------- */
 .foot {
