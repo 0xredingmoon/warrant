@@ -497,6 +497,11 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
 | Foundry | 162 | Every reason code and cap edge, the rolling window across bucket boundaries, `payOrRefuse` and `PaymentRefused`, signature binding, approval queue, funding (incl. reentrancy), factory and registry, fuzzing and invariants, Shanghai opcode scan, deploy script, fork tests on the real tUSD8 |
 | vitest | 80 | store (4), sdk (22), mcp (4), merchant (13), relayer (37): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), serverless db and IP defaults, store fallback when the filesystem is read-only, merchant 402 and x402 flows, MCP tools over an in-memory transport, and 7 for the smart-account policy path against a local chain (the vault's own `check` accepting the account's ERC-1271 signature, the overspend refused as `ExceedsPerTxCap`, an in-rule payment accepted, a bare signature rejected, and the UserOp hash matching the EntryPoint) |
 | Scenario | 1 | `pnpm demo:fork` and `pnpm demo:aevum` assert every step's outcome |
+
+The seven smart-account tests deploy Kernel v3.1, its factory, the ECDSA validator and the v0.7 EntryPoint from a
+pinned copy of their compiled bytecode in `packages/relayer/test/fixtures/kernel/`, so they run on a clean clone with no
+build step. That directory's README gives the source and compiler settings, and the test itself reads `accountId()` and
+`rootValidator()` back from the deployed account, so a stub cannot pass.
 | UI | 3 | `web/e2e/smoke.mjs` drives the dashboard on the fork with a mock wallet; `web/e2e/wallet-states.mjs` covers wallet edge cases; `web/e2e/live-readonly.mjs` reads a live vault |
 
 ## Known limitations

@@ -32,8 +32,21 @@ import {
 } from "@warrant/sdk";
 import { hasAnvil, startChain, type TestChain } from "./chain";
 
-const OUT = join(__dirname, "../../../out");
-const artifact = (name: string) => JSON.parse(readFileSync(join(OUT, "KernelV31.sol", `${name}.json`), "utf8")) as { abi: any; bytecode: { object: Hex } };
+// Bytecode for Kernel v3.1, its factory, the ECDSA validator and the v0.7 EntryPoint. A pinned copy is committed
+// next to this test so the suite runs on a clean clone with no build step; `bash scripts/fetch-kernel-artifacts.sh`
+// rebuilds those four from source into out/KernelV31.sol and, if present, that build wins.
+const FIXTURE = join(__dirname, "fixtures/kernel");
+const BUILT = join(__dirname, "../../../out/KernelV31.sol");
+const artifact = (name: string) => {
+  for (const dir of [BUILT, FIXTURE]) {
+    try {
+      return JSON.parse(readFileSync(join(dir, `${name}.json`), "utf8")) as { abi: any; bytecode: { object: Hex } };
+    } catch {
+      /* try the next location */
+    }
+  }
+  throw new Error(`no artifact for ${name} in ${BUILT} or ${FIXTURE}`);
+};
 
 const hasKernel = (() => {
   try {
