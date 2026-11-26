@@ -1,6 +1,16 @@
 import { hashTypedData, type Address, type Hex } from "viem";
-import { signIntent, type TypedDataSigner } from "./intents";
+import { paymentIntentTypes, vaultDomain, type TypedDataSigner } from "./intents";
 import type { PaymentIntent } from "./types";
+
+/** The EIP-712 digest the vault passes to `SignatureChecker`. This is what ERC-1271 receives, never a signature. */
+export function intentDigest(chainId: number, vault: Address, intent: PaymentIntent): Hex {
+  return hashTypedData({
+    domain: vaultDomain(chainId, vault),
+    types: paymentIntentTypes,
+    primaryType: "PaymentIntent",
+    message: intent as any,
+  });
+}
 
 /**
  * Signing as an ERC-4337 Kernel v3.1 smart account.
@@ -73,8 +83,10 @@ export async function signIntentAsAccount(args: {
   vault: Address;
   intent: PaymentIntent;
 }): Promise<Hex> {
-  const inner = await signIntent({ signer: args.signer, chainId: args.chainId, vault: args.vault, intent: args.intent });
-  const wrapped = wrapForKernel({ chainId: args.chainId, account: args.account, hash: inner });
+  // `signIntent` returns an EIP-2098 compact (64 byte) signature. Kernel wraps the 32 byte DIGEST, not a signature,
+  // so build the digest here. This is the mistake the type system does not catch: bytes is bytes.
+  const digest = intentDigest(args.chainId, args.vault, args.intent);
+  const wrapped = wrapForKernel({ chainId: args.chainId, account: args.account, hash: digest });
   const sig = await args.signer.signMessage({ message: { raw: wrapped } });
   return `0x00${sig.slice(2)}` as Hex;
 }

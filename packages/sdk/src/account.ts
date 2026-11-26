@@ -92,15 +92,18 @@ export const kernelAbi = [
   },
 ] as const;
 
+// UserOperationLib.encode() hashes the three dynamic fields before abi.encode: hashInitCode, hashCallData,
+// hashPaymasterAndData are all bytes32 there, not the bytes themselves. Typing them as bytes silently produces a
+// different digest that still has the right length.
 const packedOpAbi = parseAbiParameters([
   "address sender",
   "uint256 nonce",
-  "bytes initCode",
-  "bytes callData",
+  "bytes32 hashInitCode",
+  "bytes32 hashCallData",
   "bytes32 accountGasLimits",
   "uint256 preVerificationGas",
   "bytes32 gasFees",
-  "bytes paymasterAndData",
+  "bytes32 hashPaymasterAndData",
 ]);
 
 /** `0x000000` in the first three bytes is the default exec mode: a single call, revert the whole op on failure. */
@@ -109,7 +112,8 @@ export const CALLTYPE_SINGLE_DEFAULT_MODE: Hex = "0x0000000000000000000000000000
 /** Pack `verificationGasLimit` and `callGasLimit` the way EntryPoint v0.7 does, high 128 bits first. */
 export function packUints(hi: bigint, lo: bigint): Hex {
   if (hi > (1n << 128n) - 1n || lo > (1n << 128n) - 1n) throw new Error("packUints: value does not fit 128 bits");
-  return toHex(concat([toHex(hi, { size: 16 }), toHex(lo, { size: 16 })]), { size: 32 });
+  // One uint256 with hi in the top 128 bits. Building the number avoids any question of how a hex string is split.
+  return toHex((hi << 128n) | lo, { size: 32 });
 }
 
 /** The Kernel v3.1 account init data: root validator `0x01 || address`, no hook, owner, nothing else. */
@@ -154,10 +158,14 @@ export function predictAccount(args: {
 export function encodeExecCall(calls: { to: Address; data: Hex; value?: bigint }[], mode: Hex = CALLTYPE_SINGLE_DEFAULT_MODE): Hex {
   const first = calls[0];
   if (calls.length === 1 && first) {
-    const executionCalldata = encodeAbiParameters(
-      parseAbiParameters("address target, uint256 value, bytes callData"),
-      [first.to, first.value ?? 0n, first.data],
-    );
+    // CALLTYPE_SINGLE is NOT abi.encode: ExecLib.execute reads target = calldata[0:20], value = [20:52], then the
+    // rest is callData. abi-encoding a (address, uint256, bytes) tuple here inserts an offset word and shifts the
+    // target, so the call lands on a garbage address. Pack it as Kernel expects.
+    const executionCalldata = concat([
+      first.to,
+      toHex(first.value ?? 0n, { size: 32 }),
+      first.data,
+    ]) as Hex;
     return encodeFunctionData({ abi: kernelAbi, functionName: "execute", args: [mode, executionCalldata] });
   }
   return encodeFunctionData({
@@ -187,12 +195,12 @@ export function getUserOpHash(args: { userOp: KernelUserOp; entryPoint?: Address
   const packed = keccak256(encodeAbiParameters(packedOpAbi, [
     op.sender,
     op.nonce,
-    op.initCode,
-    op.callData,
+    keccak256(op.initCode),
+    keccak256(op.callData),
     packUints(op.verificationGasLimit, op.callGasLimit),
     op.preVerificationGas,
     packUints(op.maxPriorityFeePerGas, op.maxFeePerGas),
-    op.paymasterAndData,
+    keccak256(op.paymasterAndData),
   ]));
   return keccak256(
     encodeAbiParameters(parseAbiParameters("bytes32, address, uint256"), [
@@ -282,7 +290,10 @@ export async function sendKernelUserOp(args: SendUserOpOptions & {
   const deploymentTx = await ensureDeployed({ publicClient, funder, factory, initData, salt: args.salt, account });
   const prefundTx = await ensureFunded({ publicClient, funder, account, min: args.minAccountBalance ?? 20_000_000_000_000_000n });
 
-  const gasPrice = args.gasPrice ?? await publicClient.getGasPrice();
+  // A UserOp already in the bundler's pool blocks a same-price replacement from the same sender ("replacement
+  // underpriced"). Aevum's base fee is a few wei, so asking for more costs nothing measurable and always clears.
+  const basePrice = args.gasPrice ?? await publicClient.getGasPrice();
+  const gasPrice = basePrice > 0n ? basePrice + 1_000_000_000n : 1_000_000_000n;
   const nonce = await publicClient.readContract({
     address: entryPoint,
     abi: [{ type: "function", name: "getNonce", stateMutability: "view", inputs: [{ name: "sender", type: "address" }, { name: "key", type: "uint192" }], outputs: [{ type: "uint256" }] }],
@@ -309,8 +320,16 @@ export async function sendKernelUserOp(args: SendUserOpOptions & {
   const hash = getUserOpHash({ userOp, entryPoint, chainId });
   userOp.signature = await signUserOpHash({ signer: owner, userOpHash: hash });
 
-  const wire = toBundlerUserOp(userOp);
-  const sent = await rpc(bundlerUrl, "eth_sendUserOperation", [wire, entryPoint]);
+  let sent = await rpc(bundlerUrl, "eth_sendUserOperation", [toBundlerUserOp(userOp), entryPoint]);
+  // "replacement underpriced" means this sender already has a UserOp in the pool at that price. The bundler reports
+  // the pending price in `data`; clear it and resend once, rather than leaving the caller to guess.
+  if (sent.error?.message === "replacement underpriced" && sent.error.data?.currentMaxFee) {
+    const clear = BigInt(sent.error.data.currentMaxFee) + 1_000_000_000n;
+    userOp.maxFeePerGas = clear;
+    userOp.maxPriorityFeePerGas = clear;
+    userOp.signature = await signUserOpHash({ signer: owner, userOpHash: getUserOpHash({ userOp, entryPoint, chainId }) });
+    sent = await rpc(bundlerUrl, "eth_sendUserOperation", [toBundlerUserOp(userOp), entryPoint]);
+  }
   if (sent.error) {
     throw new Error(`bundler rejected the UserOp: ${sent.error.message}${sent.error.data ? ` ${JSON.stringify(sent.error.data)}` : ""}`);
   }
