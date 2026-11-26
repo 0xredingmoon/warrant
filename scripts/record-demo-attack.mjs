@@ -73,7 +73,8 @@ const out = {
     expiry: Number(mandate.expiry),
     revoked: mandate.revoked,
   },
-  vaultBalance: usd(balance),
+  balanceAtRecord: usd(balance),
+  balanceNote: "snapshot when this file was written; the live figure moves as visitors run the attack demo, so read balance() from the vault",
   recordedAt: new Date().toISOString(),
 };
 

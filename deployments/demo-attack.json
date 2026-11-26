@@ -19,6 +19,7 @@
     "expiry": 1811214719,
     "revoked": false
   },
-  "vaultBalance": "1.00",
+  "balanceAtRecord": "1.00",
+  "balanceNote": "snapshot when this file was written; the live figure moves as visitors run the attack demo, so read balance() from the vault",
   "recordedAt": "2026-11-26T03:12:47.482Z"
 }
