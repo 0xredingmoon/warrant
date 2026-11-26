@@ -83,7 +83,7 @@ export function AttackPanel() {
   const exhausted = view.terms.revoked || view.terms.expired || view.terms.frozen;
 
   return (
-    <section className="panel attack" aria-labelledby="attack-title">
+    <section className="panel attack" id="try-the-attack" aria-labelledby="attack-title">
       <div className="panel-h">
         <h2 id="attack-title">Try the attack</h2>
         <span className="chip">no wallet needed</span>

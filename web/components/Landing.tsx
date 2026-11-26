@@ -1,8 +1,10 @@
 "use client";
+import { useEffect } from "react";
 import { useWallet } from "@/lib/wallet";
 import { AttackPanel } from "./AttackPanel";
 import { ChainStatus } from "./ChainStatus";
 import { ConnectButton } from "./Header";
+import { Tour } from "./Tour";
 
 const decisions: { what: string; amt: string; verdict: "ok" | "stop" | "warn"; label: string; why?: string }[] = [
   { what: "10-K summary from Ledgerline Data", amt: "0.15", verdict: "ok", label: "Paid" },
@@ -15,6 +17,25 @@ const decisions: { what: string; amt: string; verdict: "ok" | "stop" | "warn"; l
 
 export function Landing() {
   const { status } = useWallet();
+  const connected = status === "connected";
+
+  // a link straight to the demonstration (#try-the-attack) should land on it once the page exists
+  useEffect(() => {
+    if (window.location.hash === "#try-the-attack") {
+      document.getElementById("try-the-attack")?.scrollIntoView({ block: "start" });
+    }
+  }, []);
+
+  // a connected owner goes to their dashboard, which is where "open my vault" belongs
+  const openMine = () => {
+    if (connected) {
+      document.querySelector<HTMLElement>(".hero .cta")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    const c = document.querySelector<HTMLElement>(".hero .cta button");
+    c?.focus();
+  };
+
   return (
     <div className="wrap">
       <section className="hero">
@@ -33,45 +54,50 @@ export function Landing() {
               <span className="hint">Injected wallet only. Nothing is sent until you confirm.</span>
             )}
             <ChainStatus />
+            <Tour onOpenMine={openMine} />
           </div>
         </div>
-        <aside className="ticket" aria-label="Example decisions from a recorded run">
-          <div className="ticket-h">
-            <span>Mandate 1 · Ledgerline only</span>
-            <span>1.00 / day</span>
-          </div>
-          {decisions.map((d, i) => (
-            <div className="ticket-r" key={i}>
-              <div>
-                <div>{d.what}</div>
-                {d.why && <div className="hint">{d.why}</div>}
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div className="num">{d.amt} tUSD8</div>
-                <div className={`verdict ${d.verdict}`}>{d.label}</div>
-              </div>
+        <div id="decisions">
+          <aside className="ticket" aria-label="Example decisions from a recorded run">
+            <div className="ticket-h">
+              <span>Mandate 1 · Ledgerline only</span>
+              <span>1.00 / day</span>
             </div>
-          ))}
-        </aside>
+            {decisions.map((d, i) => (
+              <div className="ticket-r" key={i}>
+                <div>
+                  <div>{d.what}</div>
+                  {d.why && <div className="hint">{d.why}</div>}
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="num">{d.amt} tUSD8</div>
+                  <div className={`verdict ${d.verdict}`}>{d.label}</div>
+                </div>
+              </div>
+            ))}
+          </aside>
+        </div>
       </section>
+
+      {/* the demonstration comes first: it is the one thing a visitor can check without trusting us */}
+      <div className="tour-steps" style={{ marginBottom: 34 }}>
+        <AttackPanel />
+      </div>
+
       <section className="facts3">
         <div>
           <h3>The contract is the policy</h3>
-          <p>Limits are checked inside the payment transaction. A compromised or prompt-injected agent can only ask; the vault answers with a reason it can read back.</p>
+          <p>The rules run inside the payment transaction. A compromised or prompt-injected agent can ask, but the vault decides, and it says why in a code the agent can read back.</p>
         </div>
         <div>
           <h3>The agent never needs gas</h3>
-          <p>It signs an EIP-712 intent. A relayer submits it and pays the fee, so the agent key holds no funds and cannot be drained.</p>
+          <p>The agent signs an EIP-712 intent. A relayer submits it and pays the fee, so the agent key holds no funds and cannot be drained.</p>
         </div>
         <div>
           <h3>Merchants verify from chain data</h3>
           <p>A merchant serves a request after reading the payment event from the vault. Paid invoices build a receipt-bound reputation for the agent.</p>
         </div>
       </section>
-
-      <div style={{ marginTop: 34 }}>
-        <AttackPanel />
-      </div>
     </div>
   );
 }

@@ -47,8 +47,14 @@ above.
 
 ## Try the attack
 
-The dashboard's landing page carries a "Try the attack" panel. A judge can use it with no wallet, no install and no
-gas: two buttons ask the demonstration agent to break its own mandate, and the vault refuses both.
+The dashboard's landing page carries a "Try the attack" panel, directly under the hero. A judge can use it with no
+wallet, no install and no gas: two buttons ask the demonstration agent to break its own mandate, and the vault refuses
+both. Link straight to it with [`#try-the-attack`](https://srmohtasham123.github.io/warrant/#try-the-attack).
+
+A "Take the tour" button in the hero walks the page in five short beats: the shape of a mandate, the two attacks, why
+the on-chain refusal is the point, what a normal day looks like, and where to connect a wallet to create your own. It
+never advances on a timer, arrow keys and Escape work, and it sits clear of the buttons so a visitor can run an attack
+with the tour still open.
 
 | Button | The agent signs | The contract answers |
 | --- | --- | --- |
@@ -298,7 +304,7 @@ the first result, which is how a payment that waited for the owner is collected 
 ## Live demo
 
 - Dashboard (GitHub Pages): [https://srmohtasham123.github.io/warrant/](https://srmohtasham123.github.io/warrant/)
-- Relayer (Vercel Hobby): [https://warrant-relayer.vercel.app](https://warrant-relayer.vercel.app) — [`/health`](https://warrant-relayer.vercel.app/health)
+- Relayer (Vercel Hobby): [https://warrant-relayer.vercel.app](https://warrant-relayer.vercel.app), see [`/health`](https://warrant-relayer.vercel.app/health)
 
 The dashboard reads the Aevum testnet directly (factory, vaults, balances) and probes the public relayer for gasless deposits and approvals. The relayer runs as one Express function on the [Vercel Hobby](https://vercel.com/pricing) plan (`$0`, no credit card, no billing cycle; over a limit the feature pauses rather than charging). SQLite lives on `/tmp` and is ephemeral per instance; on-chain `invoiceRef` is the real payment idempotency guard.
 
