@@ -5,6 +5,12 @@ gives an agent a mandate: which merchants it may pay, how much per payment, per 
 when, and from what amount a human has to approve. The agent signs payment requests; the vault contract
 checks every rule inside the payment transaction. The agent never holds funds or gas.
 
+The part that is ours alone: the mandate is not a check the agent phones in, it is the agent's own spending
+policy. The same mandate works whether the agent signs with a plain key or is an ERC-4337 smart account, and
+an owner watches every agent that was ever granted one from a single on-chain log. Two such agents, one with a
+key and one a Kernel account, were both refused by the same vault, and their refusals sit in the same list:
+[check it yourself](#proof-you-can-check).
+
 Built for the [Aevum Builder Challenge #1](https://dorahacks.io/hackathon/qday/detail) on QDay Aevum testnet
 (chain `44005`). MIT licensed. Testnet only; the contracts are not audited.
 
@@ -51,10 +57,10 @@ The dashboard's landing page carries a "Try the attack" panel, directly under th
 wallet, no install and no gas: two buttons ask the demonstration agent to break its own mandate, and the vault refuses
 both. Link straight to it with [`#try-the-attack`](https://srmohtasham123.github.io/warrant/#try-the-attack).
 
-A "Take the tour" button in the hero walks the page in five short beats: the shape of a mandate, the two attacks, why
-the on-chain refusal is the point, what a normal day looks like, and where to connect a wallet to create your own. It
-never advances on a timer, arrow keys and Escape work, and it sits clear of the buttons so a visitor can run an attack
-with the tour still open.
+A "Take the tour" button in the hero walks the page in six short beats: the shape of a mandate, the two attacks, why
+the on-chain refusal is the point, the two kinds of agent that were refused, what a normal day looks like, and where to
+connect a wallet to create your own. It never advances on a timer, arrow keys and Escape work, and it sits clear of the
+buttons so a visitor can run an attack with the tour still open.
 
 | Button | The agent signs | The contract answers |
 | --- | --- | --- |
@@ -76,7 +82,12 @@ Live on Aevum testnet: [the panel on GitHub Pages](https://srmohtasham123.github
 | 0.01 tUSD8 to 0x000…dEaD | `PaymentRefused`, reason `7` (`MerchantNotAllowed`) | [0xd44e9125…](https://explorer-test.qday.info/tx/0xd44e9125d74d4e1dc74e702a0c25e96eb5ec35d1c46fce7a095e4ba09d99498e) |
 
 Both events carry the amount in the first data word and the reason in the second, so the explorer's logs tab decodes
-them without any extra tooling. The vault still holds exactly `1.00` tUSD8, and `refusalCount(1)` is `2`.
+them without any extra tooling. Those two clicks left the vault at `1.00` tUSD8 and `refusalCount(1)` at `2`.
+
+The panel is live, so anyone who visits can add to those numbers. Rather than quote a figure that moves, the
+dashboard's "Proof you can check" section reads the vault's balance, each mandate's `spentTotal` and each
+`refusalCount` from the contract every fifteen seconds. The two hashes above are fixed history; the counts beside them
+are whatever the chain says when you look.
 
 Opening the demonstration took four transactions: [createVault](https://explorer-test.qday.info/tx/0x657e6b49730bc0684e93f26f619f25c91792787a76aafe17d8a0543219d51774),
 [approve](https://explorer-test.qday.info/tx/0x718f4a99dcb92bc4bd891b0339cf69bf4445b5cd283e0690ecc68e935f1275a1),
@@ -150,6 +161,7 @@ relayer rate-limits refusals per vault and per day. A plain `pay()` call still r
 | `packages/mcp` | `@warrant/mcp`: MCP server with `check_mandate` and `pay_with_mandate` |
 | `packages/demo` | The scenario above, runnable on a fork or on Aevum; `src/serve.ts` runs the demo merchant and notes site as long-lived services; `src/video.ts` records the demo video |
 | `web/` | Next.js owner dashboard (viem, injected wallet); builds to static files |
+| `scripts/kernel-account-demo.mjs` | Runs the agent as a Kernel smart account against the demo vault (mandate #2, refused overspend, in-rule payment) |
 | `Dockerfile`, `docker-compose.yml`, `api/`, `vercel.json`, `deploy/hf-space`, `render.yaml`, `fly.toml`, `railway.json` | Container and hosting configs, see [Live demo](#live-demo) and [Docker and hosting](#docker-and-hosting) |
 | `docs/` | [`DESIGN.md`](docs/DESIGN.md), [`BUSINESS.md`](docs/BUSINESS.md), [`gas-report.md`](docs/gas-report.md), [`live-run.md`](docs/live-run.md) |
 
@@ -271,6 +283,12 @@ The dashboard has no server of its own. Its settings (relayer, RPC, explorer, fa
 `/config.js`, so one build serves any relayer; `NEXT_PUBLIC_*` variables ([`web/.env.example`](web/.env.example))
 override the committed defaults at build time.
 
+The surface follows iOS: grouped rounded cards on a system group background with hairline separators, a large
+display headline, one blue accent, and frosted sheets for the mandate drawer and the tour. Inter stands in for SF Pro.
+Every control is at least 44 by 44 px, dark mode follows the system, and the layout is checked with no horizontal
+scroll at 390, 430 and 1360 px wide. `web/e2e/verify-attack-demo.mjs` runs against the static export and both
+refusals come back on screen before a build is published.
+
 Create a vault, deposit (one signature through the relayer if `NEXT_PUBLIC_RELAYER_URL` is set, otherwise
 approve and deposit), issue a mandate from a template or custom limits (it can generate an agent key and register
 the agent identity), approve or reject queued payments, freeze, set a guardian, revoke, read the activity log with a
@@ -365,6 +383,82 @@ Waits for block confirmation are sped up and marked on screen.
 Roles, reason codes and the threat model: [`docs/DESIGN.md`](docs/DESIGN.md). Business model and what is and is
 not proven: [`docs/BUSINESS.md`](docs/BUSINESS.md).
 
+## The agent as a smart account
+
+An agent can be an ERC-4337 Kernel v3.1 account, and the mandate can name that account as its agent instead of a
+key. The account signs the `PaymentIntent` as a contract (ERC-1271), submits `WarrantVault.payOrRefuse` in a UserOp
+through the bundler, and the vault applies the mandate exactly as it does for an EOA agent. Nothing in the Solidity
+changes: `MandateParams.agent` was already documented as "EOA or ERC-1271 contract", and `payOrRefuse` verifies with
+`SignatureChecker.isValidSignatureNow`, which is the ERC-1271 call.
+
+| Fact | Value | Evidence |
+| --- | --- | --- |
+| EntryPoint v0.7 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` | `eth_supportedEntryPoints` on the bundler |
+| KernelFactory | `0xaac5D4240AF87249B3f71BC8E4A2cae074A3E419` | `getAddress` and `createAccount` used below |
+| Kernel implementation | `0xBAC849bB641841b44E965fB01A4Bf5F074f84b4D` | `accountId()` returns `kernel.advanced.v0.3.1` |
+| Root validator | `0x845adb2c711129d4f3966735ed98a9f09fc4ce57` | `rootValidator()` returns `0x01` + this address |
+| Smart account | `0xA2eA6Be31038eE2282FBB8a9d5FFECc06d095c2c` | 61-byte proxy, deployed by the factory |
+| The spike (first UserOp) | userOpHash `0xf8342d26178222830b45f7905afea73622b5ce5e64693e312a551afe8c6f859b` | [tx 0x68214f2f...](https://explorer-test.qday.info/tx/0x68214f2fedd8d426e28fef3198bd3280fa9e21309bd4ccccb2045072d8bf01ef) |
+| Refused by the mandate | 250.00 tUSD8, `ExceedsPerTxCap` (reason 9) | [tx 0xfeb0767c...](https://explorer-test.qday.info/tx/0xfeb0767cf6a2cc1ad3c3d21a5d59d56ad19c2424bd653f1d116de1f664517157) |
+| Paid inside the mandate | 0.05 tUSD8, `PaymentExecuted`, 0.00005 fee | [tx 0x83ca3059...](https://explorer-test.qday.info/tx/0x83ca30591b3e900baf72f6a0979d5755a92ae6c02eb0af7a69e3c3f1f356eef5) |
+
+Both payments are on the demo vault `0xC3Cd5BEF962C78e5f673386f808046E9812e905e`, mandate #2, whose agent is the
+account. `deployments/kernel-account-demo.json` records the same hashes.
+
+### Proof you can check
+
+The dashboard shows this rather than only describing it. A "Proof you can check" section sits under the attack panel
+and puts the two runtimes side by side on that one vault: the plain key of mandate #1 and the smart account of mandate
+#2. Each card reads `getMandate(id).params.agent` from the vault and says whether it matches the agent the card claims,
+so "the smart account is the agent" is checked against the contract rather than asserted. Above them it shows the
+vault's balance, and for each mandate its `spentTotal` and `refusalCount`, all read every fifteen seconds, so the figures
+cannot drift from the chain. Below them it reads `accountId()` (`kernel.advanced.v0.3.1`) and `rootValidator()` from the
+account itself. The transactions are linked, not embedded. `web/lib/proof.ts` holds the fixed hashes and the live reads;
+`web/components/ProofPanel.tsx` renders them.
+
+### The signature the account gives the vault
+
+Two signatures come out of the same owner key and they are not interchangeable. The UserOp signature goes to the
+EntryPoint and is a plain EIP-191 signature over `getUserOpHash`. The mandate signature goes to the vault, which
+calls the account's `isValidSignature` (ERC-1271). Kernel does not accept a bare 65-byte signature there: it reads a
+validation envelope from the front of the signature, then checks the rest against `Kernel(bytes32 hash)`, its own
+EIP-712 wrapper over the digest. The form that verifies is
+
+```
+0x00  ||  EIP-191( hashTypedData( Kernel(bytes32 hash), hash = vault intent digest ) )
+```
+
+`0x00` is the root-validator envelope, the type hash is `keccak256("Kernel(bytes32 hash)")`
+(`0x1547321c...`, not `KernelWrapper(...)`), and the domain is `name: "Kernel", version: "0.3.1"`. `@warrant/sdk`
+builds it: `signIntentAsAccount` and `payWithSmartAccount`.
+
+### Four constraints Aevum imposes, learned by hitting them
+
+1. The account pays its own prefund. There is no paymaster, so the account needs tQDAY before the UserOp is
+   validated, or the bundler answers `AA21 didn't pay prefund`.
+2. The account is deployed before the UserOp, not in `initCode`. The factory is not staked on the EntryPoint, and
+   EntryPoint v0.7 refuses a counterfactual deployment that touches the validator's storage. `createAccount` is
+   permissionless and its address does not depend on the caller, so an ordinary transaction to the factory lands the
+   account at the predicted address, and the UserOp carries `initCode: "0x"`.
+3. The call is `execute(bytes32, bytes)`. A single call is packed as `target || value || callData`, and a batch is
+   `abi.encode(Execution[])` in the `bytes` argument.
+4. The bundler is slow. It accepts the UserOp, holds it, and mines it minutes later. Poll `eth_getUserOperationReceipt`
+   and do not treat a null receipt as a failure.
+
+Running it:
+
+```bash
+# both keys live in .demo/ (gitignored): the vault owner, and the account's owner key
+cd packages/sdk && node ../../scripts/kernel-account-demo.mjs          # issues mandate #2 if missing, then pays
+cd packages/sdk && node ../../scripts/kernel-account-demo.mjs --plan   # print the plan, no transactions
+```
+
+The script refuses to run unless `.demo/demo-deployer.key` owns the demo vault, so it cannot accidentally write to a
+vault it does not control. `packages/relayer/test/smart-account.test.ts` exercises the policy path against a local
+chain: the vault's own `check` accepting the account's ERC-1271 signature, the overspend refused, an in-rule payment
+accepted, and a bare signature rejected. The bundled call into the vault is proved by the two Aevum transactions
+above, not by that test, because the locally compiled Kernel does not route `execute` on anvil.
+
 ## Contracts
 
 | Contract | |
@@ -391,15 +485,17 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
   the real domain.
 - Legacy transactions only. `eth_getLogs` is limited to 1,000 blocks and there is no WebSocket, so the UI and SDK poll
   in chunks.
-- No ERC-4337 bundler or paymaster is available. Warrant does not need one: payments are relayed signed intents and
-  deposits use EIP-3009.
+- ERC-4337 is live. EntryPoint v0.7 is at `0x0000000071727De22E5E9d8BAf0edAc6f37da032` and a bundler answers at
+  `https://bundler.qday.info`; there is no paymaster, so an account pays its own prefund in tQDAY. Warrant uses it for
+  an agent that is itself a smart account (see [The agent as a smart account](#the-agent-as-a-smart-account)); plain
+  agents still use relayed signed intents and EIP-3009 deposits, and need no bundler.
 
 ## Tests
 
 | Suite | Count | What it covers |
 | --- | --- | --- |
 | Foundry | 162 | Every reason code and cap edge, the rolling window across bucket boundaries, `payOrRefuse` and `PaymentRefused`, signature binding, approval queue, funding (incl. reentrancy), factory and registry, fuzzing and invariants, Shanghai opcode scan, deploy script, fork tests on the real tUSD8 |
-| vitest | 63 | store (4), sdk (22), mcp (4), merchant (13), relayer (20): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), serverless db and IP defaults, store fallback when the filesystem is read-only, merchant 402 and x402 flows, MCP tools over an in-memory transport |
+| vitest | 80 | store (4), sdk (22), mcp (4), merchant (13), relayer (37): reason messages, signing and recovery, chunking and halving of log reads, x402 v1 and v2 encode, verify and settle, relayer guards (dev key refusal, API key, rate limits that survive a restart, bad input), serverless db and IP defaults, store fallback when the filesystem is read-only, merchant 402 and x402 flows, MCP tools over an in-memory transport, and 7 for the smart-account policy path against a local chain (the vault's own `check` accepting the account's ERC-1271 signature, the overspend refused as `ExceedsPerTxCap`, an in-rule payment accepted, a bare signature rejected, and the UserOp hash matching the EntryPoint) |
 | Scenario | 1 | `pnpm demo:fork` and `pnpm demo:aevum` assert every step's outcome |
 | UI | 3 | `web/e2e/smoke.mjs` drives the dashboard on the fork with a mock wallet; `web/e2e/wallet-states.mjs` covers wallet edge cases; `web/e2e/live-readonly.mjs` reads a live vault |
 
@@ -413,7 +509,10 @@ Typical gas: createVault 3.60M, createMandate 163k, pay 151k to 203k, revoke 52k
   but a relayer that pays for every refusal can still be drained slowly; a hosted one would charge for it.
 - SQLite files belong to one process each. Running several relayers needs a shared database.
 - The `warrant` x402 scheme is ours. Stock x402 clients and facilitators cannot use it.
-- No ERC-4337 bundler exists on Aevum, so there is no account abstraction here; the vault is the account.
+- Account abstraction is one shape here, not the only one: the vault is still the account for a plain EOA agent. The
+  smart-account path needs a funded account, because Aevum has no paymaster to pay the prefund.
+- The bundler batches slowly and sometimes holds an accepted UserOp for minutes. Resending at the same gas price is
+  refused as "replacement underpriced"; the SDK raises the price and resends once.
 - The identity and reputation registry is our own ERC-8004-shaped contract, not the official registry.
 - tUSD8 is admin-pausable; a paused token makes payments revert without changing state.
 - The compose file and the hosting configs have not been deployed on a hosting provider.

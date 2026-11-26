@@ -35,6 +35,11 @@ export const TOUR_STEPS: TourStep[] = [
     body: "A rejection that only shows up as a message to the agent proves nothing to anyone else. Here the vault records a PaymentRefused event with the amount and a fixed reason code. That record is what the panel reads back, and it is what any other program can read too, without trusting this page.",
   },
   {
+    target: "#proof",
+    title: "Two kinds of agent, one set of rules",
+    body: "The same vault has held a mandate for an ordinary key and for an ERC-4337 smart account. Both tried to overspend and both were refused. The numbers here are read from the contract as you look at them, and each transaction link opens the explorer, so this is not a screenshot of a demo.",
+  },
+  {
     target: "#decisions",
     title: "The same rules, on a normal day",
     body: "This is what a mandate looks like while an agent behaves. Small purchases to an allowed merchant go through. A page that tries to make the agent pay a stranger is refused. A larger payment waits for the owner. After the owner revokes, everything stops.",

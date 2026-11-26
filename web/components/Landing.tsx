@@ -4,6 +4,7 @@ import { useWallet } from "@/lib/wallet";
 import { AttackPanel } from "./AttackPanel";
 import { ChainStatus } from "./ChainStatus";
 import { ConnectButton } from "./Header";
+import { ProofPanel } from "./ProofPanel";
 import { Tour } from "./Tour";
 
 const decisions: { what: string; amt: string; verdict: "ok" | "stop" | "warn"; label: string; why?: string }[] = [
@@ -48,7 +49,9 @@ export function Landing() {
           </p>
           <div className="cta">
             <ConnectButton big />
-            {status === "connecting" ? (
+            {status === "unavailable" ? (
+              <span className="hint">This page needs no wallet to run the demonstration below.</span>
+            ) : status === "connecting" ? (
               <span className="hint waiting" role="status"><span className="spinner dark" aria-hidden /> Waiting for your wallet. Approve the connection in its window; nothing is sent.</span>
             ) : (
               <span className="hint">Injected wallet only. Nothing is sent until you confirm.</span>
@@ -84,7 +87,9 @@ export function Landing() {
         <AttackPanel />
       </div>
 
-      <section className="facts3">
+      <ProofPanel />
+
+      <section className="facts3" style={{ marginTop: 34 }}>
         <div>
           <h3>The contract is the policy</h3>
           <p>The rules run inside the payment transaction. A compromised or prompt-injected agent can ask, but the vault decides, and it says why in a code the agent can read back.</p>

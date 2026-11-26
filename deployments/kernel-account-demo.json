@@ -1,0 +1,33 @@
+{
+  "network": "aevum",
+  "chainId": 44005,
+  "account": "0xA2eA6Be31038eE2282FBB8a9d5FFECc06d095c2c",
+  "owner": "0x1a3b6B2C3fFaDAF12B2ff50537CeF5d626a07B5b",
+  "vault": "0xC3Cd5BEF962C78e5f673386f808046E9812e905e",
+  "mandateId": 2,
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "kernelFactory": "0xaac5D4240AF87249B3f71BC8E4A2cae074A3E419",
+  "rootValidator": "0x01845adb2c711129d4f3966735ed98a9f09fc4ce57",
+  "refused": {
+    "userOpHash": "0x80fd48793868801d399ce4ee413004068648c994c566178be8772fe28f925284",
+    "txHash": "0xfeb0767cf6a2cc1ad3c3d21a5d59d56ad19c2424bd653f1d116de1f664517157",
+    "success": true,
+    "amount": "250.00",
+    "reason": "ExceedsPerTxCap",
+    "mandateId": 2,
+    "agent": "0xA2eA6Be31038eE2282FBB8a9d5FFECc06d095c2c",
+    "reasonCode": 9,
+    "explorer": "https://explorer-test.qday.info/tx/0xfeb0767cf6a2cc1ad3c3d21a5d59d56ad19c2424bd653f1d116de1f664517157"
+  },
+  "paid": {
+    "userOpHash": "0x3c4d145a4d4cebb90b14e21019ef712150717e239f88deac117a2b9bda11dc58",
+    "txHash": "0x83ca30591b3e900baf72f6a0979d5755a92ae6c02eb0af7a69e3c3f1f356eef5",
+    "success": true,
+    "amount": "0.05",
+    "mandateId": 2,
+    "merchant": "0xf2b01C5b12DaAe6adAa0a876065D303302F4b4Ae",
+    "feeTusd8": "0.000050",
+    "explorer": "https://explorer-test.qday.info/tx/0x83ca30591b3e900baf72f6a0979d5755a92ae6c02eb0af7a69e3c3f1f356eef5"
+  },
+  "recordedAt": "2026-11-26T05:55:29.504Z"
+}
