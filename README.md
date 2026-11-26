@@ -272,6 +272,12 @@ The dashboard has no server of its own. Its settings (relayer, RPC, explorer, fa
 `/config.js`, so one build serves any relayer; `NEXT_PUBLIC_*` variables ([`web/.env.example`](web/.env.example))
 override the committed defaults at build time.
 
+The surface follows iOS: grouped rounded cards on a system group background with hairline separators, a large
+display headline, one blue accent, and frosted sheets for the mandate drawer and the tour. Inter stands in for SF Pro.
+Every control is at least 44 by 44 px, dark mode follows the system, and the layout is checked with no horizontal
+scroll at 390, 430 and 1360 px wide. `web/e2e/verify-attack-demo.mjs` runs against the static export and both
+refusals come back on screen before a build is published.
+
 Create a vault, deposit (one signature through the relayer if `NEXT_PUBLIC_RELAYER_URL` is set, otherwise
 approve and deposit), issue a mandate from a template or custom limits (it can generate an agent key and register
 the agent identity), approve or reject queued payments, freeze, set a guardian, revoke, read the activity log with a
