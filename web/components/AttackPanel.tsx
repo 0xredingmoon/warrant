@@ -2,7 +2,13 @@
 import { useState } from "react";
 import { useAttackDemo, useRunAttack, shortAddress, type AttackKind, type AttackOutcome } from "@/lib/attack-demo";
 
-/** One attack row: what the agent will try, a button, and the contract's answer once it has answered. */
+/**
+ * One attack row: what the agent will try, a button, and the contract's answer once it has answered.
+ *
+ * The result is not a message that appears and fades. It stays attached to the row it belongs to, with the reason code
+ * the contract used and a link to the transaction, because the whole claim of this page is that the refusal is
+ * checkable rather than asserted.
+ */
 function AttackRow({ plan, agent, outcome, onRun, running }: {
   plan: { kind: AttackKind; attempted: string; amount: string; merchant: string; expectedReason: string };
   agent: string;
@@ -16,8 +22,9 @@ function AttackRow({ plan, agent, outcome, onRun, running }: {
       <div className="attack-main">
         <div className="attack-title">{plan.attempted}</div>
         <div className="hint">
-          <span className="mono">{plan.amount} tUSD8</span> to <span className="mono" title={plan.merchant}>{shortAddress(plan.merchant)}</span>, signed by the
-          agent key <span className="mono" title={agent}>{shortAddress(agent)}</span>
+          <span className="mono">{plan.amount} tUSD8</span> to{" "}
+          <span className="mono" title={plan.merchant}>{shortAddress(plan.merchant)}</span>, signed by the agent key{" "}
+          <span className="mono" title={agent}>{shortAddress(agent)}</span>
         </div>
       </div>
       <div className="attack-state">
@@ -36,7 +43,7 @@ function AttackRow({ plan, agent, outcome, onRun, running }: {
         )}
       </div>
       {outcome ? (
-        <div className="attack-result">
+        <div className="attack-result" role="status">
           <p>
             <strong>The vault answered:</strong> {outcome.check.message}
           </p>
@@ -90,8 +97,8 @@ export function AttackPanel() {
       </div>
       <div className="panel-b stack-sm">
         <p className="attack-lead">
-          Give an agent a real mandate, then tell it to break it. Both payments below are signed for real and refused
-          by the vault on Aevum testnet.
+          Give an agent a real mandate, then tell it to break it. Both payments below are signed for real and refused by
+          the vault on Aevum testnet.
         </p>
 
         <dl className="facts">
@@ -119,9 +126,9 @@ export function AttackPanel() {
 
         {exhausted ? (
           <p className="hint">
-            This demonstration mandate is {view.terms.revoked ? "revoked" : view.terms.frozen ? "frozen" : "expired"}, so every
-            attempt is refused for that reason rather than the rule it was testing. The refusals below still happened
-            and are still on-chain.
+            This demonstration mandate is {view.terms.revoked ? "revoked" : view.terms.frozen ? "frozen" : "expired"}, so
+            every attempt is refused for that reason rather than the rule it was testing. The refusals below still
+            happened and are still on-chain.
           </p>
         ) : null}
 

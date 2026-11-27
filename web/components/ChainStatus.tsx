@@ -13,7 +13,7 @@ export function ChainStatus() {
     retry: 2,
   });
   return (
-    <p className="hint" data-testid="chain-status" style={{ marginTop: 12 }}>
+    <p className="hint chain-status" data-testid="chain-status">
       {block.isError ? (
         <>Could not reach the Aevum RPC. Factory{" "}
           <a className="mono" href={addrLink(FACTORY)} target="_blank" rel="noreferrer">{short(FACTORY, 4)}</a>.

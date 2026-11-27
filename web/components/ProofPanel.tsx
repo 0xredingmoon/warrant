@@ -120,6 +120,25 @@ export function ProofPanel() {
           Those two answers come from the account itself, so you do not have to take our word that it is a Kernel
           account. The mandate names it as its agent, and the vault checks its signature the same way it checks a key.
         </p>
+
+        <div className="proof-check">
+          <p className="proof-check-h">If you want to check this yourself</p>
+          <ol className="proof-steps">
+            <li>
+              <span>Open the vault address in the explorer and read <span className="mono">getMandate(1)</span> and{" "}
+              <span className="mono">getMandate(2)</span>. Their agent addresses must match the two cards above, in that
+              order.</span>
+            </li>
+            <li>
+              <span>Open either refusal transaction. Its logs carry <span className="mono">PaymentRefused</span> with the
+              amount and the reason code, written by the vault, not by this page.</span>
+            </li>
+            <li>
+              <span>Compare each card's balance and spend figures with the vault's token balance and mandate counters. They
+              are read live while you look at them.</span>
+            </li>
+          </ol>
+        </div>
       </div>
     </section>
   );

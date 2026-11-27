@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
-import { createVault, randomBytes32 } from "@warrant/sdk";
+import { createVault, formatUsd, randomBytes32 } from "@warrant/sdk";
 import { formatEther, isAddress, getAddress, zeroAddress } from "viem";
 import { CHAIN_ID, FACTORY } from "@/lib/config";
 import { ensureAevum } from "@/lib/network";
@@ -10,6 +10,7 @@ import { useClients } from "@/lib/hooks";
 import { useAudit, useCreateVaultFee, useGasBalance, useVault, useVaults } from "@/lib/queries";
 import { useWallet } from "@/lib/wallet";
 import { useVaultNames } from "@/lib/vault-names";
+import { PROOF_VAULT } from "@/lib/proof";
 import { useTx } from "@/lib/tx";
 import { ActivityPanel } from "./ActivityPanel";
 import { BalancePanel } from "./BalancePanel";
@@ -103,6 +104,31 @@ function CreateVault({ onCreated, onCancel, existing }: { onCreated: (v: Address
   );
 }
 
+/**
+ * The view a visitor with no wallet gets. It is the real dashboard, reading the real demo vault from the chain, with
+ * every write action gated by the panels themselves (they already check owner or guardian before enabling a button).
+ *
+ * Why this exists: the page used to render a marketing landing page whenever no wallet was connected, which meant a
+ * judge who arrives without MetaMask never saw the product at all. That is the opposite of what a live testnet
+ * submission should do: the chain is public, so the state is public, and only the signatures are the visitor's own.
+ */
+export function DemoDashboard() {
+  const { nameOf, rename } = useVaultNames();
+  const vault = PROOF_VAULT;
+  return (
+    <div className="wrap">
+      <VaultView
+        vault={vault}
+        vaults={[vault]}
+        onSelect={() => {}}
+        onAdd={() => {}}
+        nameOf={nameOf}
+        rename={rename}
+      />
+    </div>
+  );
+}
+
 export function Dashboard() {
   const { address } = useWallet();
   const vaults = useVaults(address);
@@ -169,6 +195,8 @@ function VaultView({ vault, vaults, onSelect, onAdd, nameOf, rename }: { vault: 
   const [renaming, setRenaming] = useState<string | null>(null);
   const s = data.data?.state;
   const name = nameOf(vault, vaults);
+  const openPending = (data.data?.pending ?? []).filter((p) => p.status === "Open");
+  const liveMandates = (data.data?.mandates ?? []).filter((m) => !m.revoked);
   return (
     <>
       {sheet && <NewMandateSheet vault={vault} vaultName={name} registerAgent={sheet.register} onClose={() => setSheet(null)} />}
@@ -177,7 +205,7 @@ function VaultView({ vault, vaults, onSelect, onAdd, nameOf, rename }: { vault: 
           {renaming === null ? (
             <h1>
               {name}{" "}
-              <button className="link hint" style={{ fontSize: 13, verticalAlign: "middle" }} onClick={() => setRenaming(name)}>Rename</button>
+              <button className="link hint" style={{ fontSize: 13 }} onClick={() => setRenaming(name)}>Rename</button>
             </h1>
           ) : (
             <form className="row" onSubmit={(e) => { e.preventDefault(); rename(vault, renaming); setRenaming(null); }}>
@@ -226,18 +254,54 @@ function VaultView({ vault, vaults, onSelect, onAdd, nameOf, rename }: { vault: 
           <button className="btn sm" onClick={() => data.refetch()}>Retry now</button>
         </div>
       ) : (
-        <div className="grid">
-          <div className="stack">
-            <MandatePanel vault={vault} vaultName={name} data={data.data} audit={audit.data} auditLoading={audit.isFetching} loading={data.isLoading} onNew={() => setSheet({ register: false })} />
-            <ActivityPanel vault={vault} audit={audit.data} loading={audit.isLoading} error={audit.isError} />
+        <>
+          {/* Four numbers at the top of the page, because these are the four things an owner opens this page to check. */}
+          <div className="vitals" role="group" aria-label="Vault at a glance">
+            <div>
+              <span className="k">In the vault</span>
+              <span className="v">
+                {s ? formatUsd(s.balance) : "—"}
+                <small>tUSD8</small>
+              </span>
+              <span className="s">{s?.frozen ? "Payments frozen" : "Ready to spend"}</span>
+            </div>
+            <div>
+              <span className="k">Live mandates</span>
+              <span className="v">{data.isLoading ? "—" : liveMandates.length}</span>
+              <span className="s">{liveMandates.length ? "Agents that can pay" : "No agent can pay yet"}</span>
+            </div>
+            <div>
+              <span className="k">Waiting for you</span>
+              <span className="v">{data.isLoading ? "—" : openPending.length}</span>
+              <span className="s">{openPending.length ? "Moves when you approve" : "Nothing to decide"}</span>
+            </div>
+            <div>
+              <span className="k">Vault status</span>
+              <span className="v" style={{ fontSize: "var(--t-lg)" }}>
+                {s ? (s.frozen ? "Frozen" : "Open") : "—"}
+              </span>
+              <span className="s">{s?.guardian && s.guardian !== "0x0000000000000000000000000000000000000000" ? "Guardian set" : "No guardian"}</span>
+            </div>
           </div>
-          <div className="stack">
-            <BalancePanel vault={vault} state={s} />
-            <PendingPanel vault={vault} vaultName={name} pending={data.data?.pending} mandates={data.data?.mandates} loading={data.isLoading} />
-            <SafetyPanel vault={vault} state={s} />
-            <ReputationPanel mandates={data.data?.mandates} onRegister={() => setSheet({ register: true })} />
+
+          <div className="grid">
+            <div className="stack">
+              {openPending.length > 0 && (
+                <PendingPanel vault={vault} vaultName={name} pending={data.data?.pending} mandates={data.data?.mandates} loading={data.isLoading} />
+              )}
+              <MandatePanel vault={vault} vaultName={name} data={data.data} audit={audit.data} auditLoading={audit.isFetching} loading={data.isLoading} onNew={() => setSheet({ register: false })} />
+              <ActivityPanel vault={vault} audit={audit.data} loading={audit.isLoading} error={audit.isError} />
+            </div>
+            <div className="stack">
+              <BalancePanel vault={vault} state={s} />
+              {openPending.length === 0 && (
+                <PendingPanel vault={vault} vaultName={name} pending={data.data?.pending} mandates={data.data?.mandates} loading={data.isLoading} />
+              )}
+              <SafetyPanel vault={vault} state={s} />
+              <ReputationPanel mandates={data.data?.mandates} onRegister={() => setSheet({ register: true })} />
+            </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );
