@@ -38,7 +38,7 @@ function AttackRow({ plan, agent, outcome, onRun, running }: {
           )
         ) : (
           <button className="btn stop sm" onClick={onRun} disabled={running}>
-            {running ? <><span className="spinner" aria-hidden /> Running</> : "Try it"}
+            {running ? <><span className="spinner" aria-hidden /> Running</> : plan.kind === "overspend" ? "Try the overspend" : "Try the off-list payment"}
           </button>
         )}
       </div>
