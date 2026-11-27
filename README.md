@@ -56,7 +56,7 @@ above.
 
 The dashboard's landing page carries a "Try the attack" panel, directly under the hero. A judge can use it with no
 wallet, no install and no gas: two buttons ask the demonstration agent to break its own mandate, and the vault refuses
-both. Link straight to it with [`#try-the-attack`](https://srmohtasham123.github.io/warrant/#try-the-attack).
+both. Link straight to it with [`#try-the-attack`](https://0xredingmoon.github.io/warrant/#try-the-attack).
 
 A "Take the tour" button in the hero walks the page in six short beats: the shape of a mandate, the two attacks, why
 the on-chain refusal is the point, the two kinds of agent that were refused, what a normal day looks like, and where to
@@ -73,7 +73,7 @@ and its normal `payOrRefuse` path. The vault checks the signature (it passes: th
 the mandate (it fails), and books a `PaymentRefused` event on-chain. The panel shows the contract's reason in plain
 words and a link to the transaction, so the claim can be checked on the explorer rather than taken on trust.
 
-Live on Aevum testnet: [the panel on GitHub Pages](https://srmohtasham123.github.io/warrant/) against vault
+Live on Aevum testnet: [the panel on GitHub Pages](https://0xredingmoon.github.io/warrant/) against vault
 [`0xC3Cd5BEF962C78e5f673386f808046E9812e905e`](https://explorer-test.qday.info/address/0xC3Cd5BEF962C78e5f673386f808046E9812e905e?tab=contract)
 (source-verified), mandate #1. The first two clicks were:
 
@@ -401,7 +401,7 @@ the first result, which is how a payment that waited for the owner is collected 
 
 ## Live demo
 
-- Dashboard (GitHub Pages): [https://srmohtasham123.github.io/warrant/](https://srmohtasham123.github.io/warrant/)
+- Dashboard (GitHub Pages): [https://0xredingmoon.github.io/warrant/](https://0xredingmoon.github.io/warrant/)
 - Relayer (Vercel Hobby): [https://warrant-relayer.vercel.app](https://warrant-relayer.vercel.app), see [`/health`](https://warrant-relayer.vercel.app/health)
 
 The dashboard reads the Aevum testnet directly (factory, vaults, balances) and probes the public relayer for gasless deposits and approvals. The relayer runs as one Express function on the [Vercel Hobby](https://vercel.com/pricing) plan (`$0`, no credit card, no billing cycle; over a limit the feature pauses rather than charging). SQLite lives on `/tmp` and is ephemeral per instance; on-chain `invoiceRef` is the real payment idempotency guard.

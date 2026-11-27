@@ -5,12 +5,12 @@ Written 2026-11-26 for a fresh session. Read this with `README.md`, `docs/DESIGN
 
 ## Where the project stands (all of this is true and verified on chain, do not redo it)
 
-- Repo `srmohtasham123/warrant`, branch `main` is current and pushed.
+- Repo `0xredingmoon/warrant`, branch `main` is current and pushed.
 - Tasks 1 and 2 are done and live:
   - Factory `0x66687369d9C683aaaaDAe98b747b63eE7e0662E3`, Registry `0xD0442513fd53FA91c411939648F9edbBF2ed747d`, both source-verified.
   - Demo attack vault `0xC3Cd5BEF962C78e5f673386f808046E9812e905e`, verified, mandate #1 (per-tx 2.00, period 10.00, total 50.00, approval 0, 180 days), 1.00 tUSD8, `refusalCount(1) = 2`.
   - Two real refusals: `0xbf60d1765e24e25807f75175974fe3785c87dac92b5b0520a297e2373dea90c6` (ExceedsPerTxCap) and `0xd44e9125d74d4e1dc74e702a0c25e96eb5ec35d1c46fce7a095e4ba09d99498e` (MerchantNotAllowed). Both are **successful** transactions that emit `PaymentRefused`; that is by design, do not "fix" it to revert.
-  - Dashboard live at https://srmohtasham123.github.io/warrant/ with the "Try the attack" panel and a five-beat tour.
+  - Dashboard live at https://0xredingmoon.github.io/warrant/ with the "Try the attack" panel and a five-beat tour.
   - Relayer live at https://warrant-relayer.vercel.app with `DEMO_*` env vars set.
 - Tests: `forge test` 162 pass, `pnpm -r test` passes (relayer needs Foundry on PATH or two anvil suites self-skip).
 - `.demo/` holds the demo agent key, the demo deployer key, and (EXPIRED-SOON) a Vercel token the user must rotate. Never print these.

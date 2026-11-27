@@ -1,6 +1,6 @@
 # Demo run on Aevum testnet
 
-The public dashboard is [https://srmohtasham123.github.io/warrant/](https://srmohtasham123.github.io/warrant/). The
+The public dashboard is [https://0xredingmoon.github.io/warrant/](https://0xredingmoon.github.io/warrant/). The
 gasless relayer is not public yet (Hugging Face Docker Spaces now require a paid PRO plan). The transactions below were
 recorded against the same factory and token.
 

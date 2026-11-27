@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "Warrant: spending mandates for AI agents",
   description: "Give an AI agent a spending mandate instead of a wallet key. Caps, an allowlist, an approval step and instant revoke, enforced by a contract on Aevum.",
   // GitHub Pages serves the app under /warrant/; metadata URLs should match.
-  metadataBase: new URL(BASE_PATH ? `https://srmohtasham123.github.io${BASE_PATH}/` : "http://localhost:3000/"),
+  metadataBase: new URL(BASE_PATH ? `https://0xredingmoon.github.io${BASE_PATH}/` : "http://localhost:3000/"),
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
